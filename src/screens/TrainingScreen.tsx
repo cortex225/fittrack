@@ -55,12 +55,13 @@ export default function TrainingScreen() {
       setGenerated(session);
       playFx('success');
     } catch (err: any) {
+      console.error('[Gemini] generateSmartWorkout:', err);
       playFx('error');
       Alert.alert(
         'IA indisponible',
         err instanceof MissingApiKeyError
           ? 'Configure ta clé Gemini dans Réglages.'
-          : 'Erreur lors de la génération. Réessaie.'
+          : `Erreur: ${err?.message ?? 'inconnue'}`
       );
     } finally {
       setGenerating(false);

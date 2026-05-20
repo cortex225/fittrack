@@ -50,10 +50,11 @@ export default function CoachChatScreen() {
       setMessages([...next, { role: 'model', text: reply }]);
       playFx('success');
     } catch (err: any) {
+      console.error('[Gemini] coachChat:', err);
       const errText =
         err instanceof MissingApiKeyError
           ? 'Configure ta clé Gemini dans Réglages pour activer le coach.'
-          : 'Connexion impossible. Réessaie.';
+          : `Connexion impossible. (${err?.message ?? 'erreur inconnue'})`;
       setMessages([...next, { role: 'model', text: errText }]);
       playFx('error');
     } finally {
