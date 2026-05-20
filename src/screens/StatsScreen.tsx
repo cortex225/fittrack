@@ -1,478 +1,406 @@
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
+  Alert,
   ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
   TextInput,
   TouchableOpacity,
-  StatusBar,
+  View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, SPACING } from '../theme';
-import { WeightEntry, Workout } from '../types';
+import { COLORS, RADIUS, SPACING } from '../theme';
+import { useApp } from '../contexts/AppContext';
 import {
-  getWeightHistory,
-  saveWeightEntry,
-  getWorkouts,
+  deleteWorkout,
+  formatDate,
+  formatDuration,
   getTodayKey,
+  getWeightHistory,
+  getWorkouts,
+  saveWeightEntry,
 } from '../utils/storage';
+import { LEVELS } from '../data/library';
+import { WeightEntry, Workout } from '../types';
 
-const BAR_MAX_HEIGHT = 120;
+const BAR_HEIGHT = 96;
 
 export default function StatsScreen() {
   const insets = useSafeAreaInsets();
+  const { gamification, currentLevel, nextLevel, xpProgress, playFx } = useApp();
 
   const [weightInput, setWeightInput] = useState('');
-  const [weightHistory, setWeightHistory] = useState<WeightEntry[]>([]);
+  const [history, setHistory] = useState<WeightEntry[]>([]);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [saving, setSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const loadData = useCallback(async () => {
-    const [history, allWorkouts] = await Promise.all([
-      getWeightHistory(),
-      getWorkouts(),
-    ]);
-    setWeightHistory(history);
-    setWorkouts(allWorkouts);
+  const load = useCallback(async () => {
+    const [h, w] = await Promise.all([getWeightHistory(), getWorkouts()]);
+    setHistory(h);
+    setWorkouts(w);
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [loadData])
+      load();
+    }, [load])
   );
 
-  const handleSaveWeight = async () => {
-    const value = parseFloat(weightInput);
-    if (isNaN(value) || value <= 0) return;
-    setSaving(true);
-    const entry: WeightEntry = {
-      date: getTodayKey(),
-      weight: value,
-    };
-    await saveWeightEntry(entry);
-    setWeightInput('');
-    setSaveSuccess(true);
-    await loadData();
-    setSaving(false);
-    setTimeout(() => setSaveSuccess(false), 2000);
-  };
-
-  // --- Bar chart helpers ---
-  const last10 = weightHistory.slice(-10);
-  const weights = last10.map((e) => e.weight);
-  const minWeight = weights.length > 0 ? Math.min(...weights) : 0;
-  const maxWeight = weights.length > 0 ? Math.max(...weights) : 0;
-  const weightRange = maxWeight - minWeight || 1;
-
-  const getBarHeight = (weight: number) => {
-    if (weights.length === 1) return BAR_MAX_HEIGHT * 0.6;
-    return ((weight - minWeight) / weightRange) * (BAR_MAX_HEIGHT * 0.8) + BAR_MAX_HEIGHT * 0.2;
-  };
-
-  const formatDateLabel = (dateStr: string) => {
-    // dateStr format: YYYY-MM-DD
-    const parts = dateStr.split('-');
-    if (parts.length >= 3) {
-      return `${parts[2]}/${parts[1]}`;
+  const saveWeight = async () => {
+    const v = parseFloat(weightInput);
+    if (isNaN(v) || v <= 0) {
+      Alert.alert('Erreur', 'Saisis un poids valide.');
+      return;
     }
-    return dateStr;
+    setSaving(true);
+    await saveWeightEntry({ date: getTodayKey(), weight: v });
+    setWeightInput('');
+    playFx('success');
+    await load();
+    setSaving(false);
   };
 
-  // --- Summary stats ---
+  const removeWorkout = (w: Workout) => {
+    Alert.alert('Supprimer ?', `Supprimer "${w.name}" de l'historique ?`, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: async () => {
+          await deleteWorkout(w.id);
+          await load();
+        },
+      },
+    ]);
+  };
+
+  const last10 = history.slice(-10);
+  const weights = last10.map((e) => e.weight);
+  const minW = weights.length ? Math.min(...weights) : 0;
+  const maxW = weights.length ? Math.max(...weights) : 0;
+  const span = Math.max(1, maxW - minW);
+
+  const barHeight = (w: number) => {
+    if (weights.length <= 1) return BAR_HEIGHT * 0.6;
+    return ((w - minW) / span) * (BAR_HEIGHT * 0.7) + BAR_HEIGHT * 0.3;
+  };
+
   const totalWorkouts = workouts.length;
+  const totalSets = workouts.reduce(
+    (a, w) => a + w.exercises.reduce((b, e) => b + e.sets.filter((s) => s.completed).length, 0),
+    0
+  );
+  const totalVolume = workouts.reduce(
+    (a, w) =>
+      a +
+      w.exercises.reduce(
+        (b, e) => b + e.sets.filter((s) => s.completed).reduce((c, s) => c + s.weight * s.reps, 0),
+        0
+      ),
+    0
+  );
 
-  const totalSets = workouts.reduce((acc, workout) => {
-    return (
-      acc +
-      (workout.exercises || []).reduce((eAcc: number, exercise: any) => {
-        return eAcc + (exercise.sets ? exercise.sets.length : 0);
-      }, 0)
-    );
-  }, 0);
-
-  const muscleGroupCount: Record<string, number> = {};
-  workouts.forEach((workout) => {
-    (workout.exercises || []).forEach((exercise: any) => {
-      const muscle = exercise.muscleGroup || exercise.muscle || null;
-      if (muscle) {
-        muscleGroupCount[muscle] = (muscleGroupCount[muscle] || 0) + 1;
-      }
-    });
-  });
-
-  const mostTrainedMuscle =
-    Object.keys(muscleGroupCount).length > 0
-      ? Object.entries(muscleGroupCount).sort((a, b) => b[1] - a[1])[0][0]
-      : null;
+  const formatDateLabel = (date: string) => {
+    const parts = date.split('-');
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}` : date;
+  };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
 
-      {/* Header */}
       <View style={styles.header}>
-        <Ionicons name="bar-chart-outline" size={24} color={COLORS.primary} />
-        <Text style={styles.headerTitle}>Statistiques</Text>
+        <Text style={styles.title}>Stats</Text>
+        <View style={styles.levelBadge}>
+          <Ionicons name="flash" size={12} color={COLORS.accent} />
+          <Text style={styles.levelBadgeText}>NIV. {gamification.level}</Text>
+        </View>
       </View>
 
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={{ padding: SPACING.md, paddingBottom: insets.bottom + 110 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Weight Input Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            <Ionicons name="scale-outline" size={16} color={COLORS.primaryLight} />
-            {'  '}Poids du jour
-          </Text>
-          <View style={styles.weightInputRow}>
-            <TextInput
-              style={styles.weightInput}
-              value={weightInput}
-              onChangeText={setWeightInput}
-              placeholder="Ex: 75.5"
-              placeholderTextColor={COLORS.textSecondary}
-              keyboardType="decimal-pad"
-              returnKeyType="done"
-            />
-            <Text style={styles.weightUnit}>kg</Text>
-            <TouchableOpacity
-              style={[
-                styles.saveButton,
-                saving && styles.saveButtonDisabled,
-                saveSuccess && styles.saveButtonSuccess,
-              ]}
-              onPress={handleSaveWeight}
-              disabled={saving}
-              activeOpacity={0.8}
-            >
-              {saveSuccess ? (
-                <Ionicons name="checkmark" size={18} color={COLORS.text} />
-              ) : (
-                <Text style={styles.saveButtonText}>Enregistrer</Text>
-              )}
-            </TouchableOpacity>
+        {/* XP progression */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Progression</Text>
+            <Text style={styles.cardSub}>
+              {currentLevel.name} → {nextLevel.name}
+            </Text>
+          </View>
+          <View style={styles.xpRow}>
+            <Text style={styles.xpCurrent}>{gamification.xp}</Text>
+            <Text style={styles.xpTarget}> / {nextLevel.xpNeeded} XP</Text>
+          </View>
+          <View style={styles.bar}>
+            <View style={[styles.barFill, { width: `${xpProgress}%`, backgroundColor: COLORS.accent }]} />
+          </View>
+          <View style={styles.levelLadder}>
+            {LEVELS.map((l) => {
+              const reached = gamification.xp >= l.xpNeeded;
+              return (
+                <View key={l.level} style={styles.ladderItem}>
+                  <View
+                    style={[
+                      styles.ladderDot,
+                      reached && { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+                    ]}
+                  >
+                    <Text style={[styles.ladderNum, reached && { color: '#08110D' }]}>{l.level}</Text>
+                  </View>
+                </View>
+              );
+            })}
           </View>
         </View>
 
-        {/* Weight Bar Chart */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            <Ionicons name="trending-up-outline" size={16} color={COLORS.primaryLight} />
-            {'  '}Historique du poids
-          </Text>
+        {/* Weight */}
+        <Text style={styles.sectionTitle}>POIDS</Text>
+        <View style={styles.card}>
+          <View style={styles.weightInputRow}>
+            <TextInput
+              style={styles.weightInput}
+              keyboardType="decimal-pad"
+              placeholder="0.0"
+              placeholderTextColor={COLORS.textMuted}
+              value={weightInput}
+              onChangeText={setWeightInput}
+            />
+            <Text style={styles.weightUnit}>kg</Text>
+            <TouchableOpacity style={styles.saveBtn} onPress={saveWeight} disabled={saving}>
+              <Ionicons name={saving ? 'hourglass-outline' : 'add'} size={18} color="#08110D" />
+              <Text style={styles.saveBtnText}>SAUVER</Text>
+            </TouchableOpacity>
+          </View>
+
           {last10.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Ionicons name="analytics-outline" size={32} color={COLORS.textSecondary} />
+            <View style={styles.empty}>
+              <Ionicons name="analytics-outline" size={32} color={COLORS.border} />
               <Text style={styles.emptyText}>Aucune donnée de poids</Text>
-              <Text style={styles.emptySubText}>Commencez à enregistrer votre poids ci-dessus</Text>
             </View>
           ) : (
-            <View style={styles.chartCard}>
-              <View style={styles.chartBars}>
-                {last10.map((entry, index) => (
-                  <View key={entry.date + index} style={styles.barWrapper}>
-                    <Text style={styles.barWeightLabel}>{entry.weight}</Text>
+            <>
+              <View style={styles.chart}>
+                {last10.map((e, i) => (
+                  <View key={e.date + i} style={styles.barCol}>
+                    <Text style={styles.barLabel}>{e.weight}</Text>
                     <View style={styles.barTrack}>
                       <View
                         style={[
-                          styles.bar,
+                          styles.weightBar,
                           {
-                            height: getBarHeight(entry.weight),
-                            backgroundColor:
-                              index === last10.length - 1
-                                ? COLORS.primary
-                                : COLORS.primaryLight,
+                            height: barHeight(e.weight),
+                            backgroundColor: i === last10.length - 1 ? COLORS.primary : COLORS.primaryDark,
                           },
                         ]}
                       />
                     </View>
-                    <Text style={styles.barDateLabel}>{formatDateLabel(entry.date)}</Text>
+                    <Text style={styles.barDate}>{formatDateLabel(e.date)}</Text>
                   </View>
                 ))}
               </View>
               <View style={styles.chartLegend}>
                 <Text style={styles.chartLegendText}>
-                  Min: {minWeight} kg{'  '}|{'  '}Max: {maxWeight} kg
+                  Min {minW} kg · Max {maxW} kg · Δ {(maxW - minW).toFixed(1)} kg
                 </Text>
               </View>
-            </View>
+            </>
           )}
         </View>
 
-        {/* Summary Stats */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            <Ionicons name="trophy-outline" size={16} color={COLORS.primaryLight} />
-            {'  '}Résumé général
-          </Text>
-          <View style={styles.statsGrid}>
-            {/* Total Workouts */}
-            <View style={styles.statCard}>
-              <View style={styles.statIconWrapper}>
-                <Ionicons name="barbell-outline" size={22} color={COLORS.primary} />
-              </View>
-              <Text style={styles.statValue}>{totalWorkouts}</Text>
-              <Text style={styles.statLabel}>Séances{'\n'}totales</Text>
-            </View>
-
-            {/* Total Sets */}
-            <View style={styles.statCard}>
-              <View style={styles.statIconWrapper}>
-                <Ionicons name="repeat-outline" size={22} color={COLORS.primary} />
-              </View>
-              <Text style={styles.statValue}>{totalSets}</Text>
-              <Text style={styles.statLabel}>Séries{'\n'}complétées</Text>
-            </View>
-
-            {/* Most Trained Muscle */}
-            <View style={[styles.statCard, styles.statCardWide]}>
-              <View style={styles.statIconWrapper}>
-                <Ionicons name="body-outline" size={22} color={COLORS.primary} />
-              </View>
-              <Text style={styles.statValueSmall}>
-                {mostTrainedMuscle ?? '—'}
-              </Text>
-              <Text style={styles.statLabel}>Muscle le plus{'\n'}entraîné</Text>
-            </View>
-          </View>
+        {/* Workouts summary */}
+        <Text style={styles.sectionTitle}>ENTRAÎNEMENTS</Text>
+        <View style={styles.statGrid}>
+          <StatCard icon="barbell-outline" value={totalWorkouts} label="Séances" />
+          <StatCard icon="repeat-outline" value={totalSets} label="Séries" />
+          <StatCard
+            icon="trending-up-outline"
+            value={totalVolume > 999 ? `${(totalVolume / 1000).toFixed(1)}k` : totalVolume}
+            label="Vol. (kg)"
+          />
         </View>
 
-        <View style={{ height: SPACING.xl + insets.bottom }} />
+        {/* Workout history */}
+        {workouts.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>HISTORIQUE</Text>
+            {workouts.slice(0, 10).map((w) => {
+              const completedSets = w.exercises.reduce(
+                (a, e) => a + e.sets.filter((s) => s.completed).length,
+                0
+              );
+              return (
+                <TouchableOpacity
+                  key={w.id}
+                  style={styles.workoutCard}
+                  onLongPress={() => removeWorkout(w)}
+                >
+                  <View style={styles.workoutHeader}>
+                    <Text style={styles.workoutName} numberOfLines={1}>{w.name}</Text>
+                    <Text style={styles.workoutDate}>{formatDate(w.date)}</Text>
+                  </View>
+                  <View style={styles.workoutMeta}>
+                    <Meta icon="time-outline" text={formatDuration(w.duration)} />
+                    <Meta icon="fitness-outline" text={`${w.exercises.length} ex.`} />
+                    <Meta icon="checkmark-outline" text={`${completedSets} séries`} />
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </>
+        )}
       </ScrollView>
     </View>
   );
 }
 
-const COLORS_LOCAL = {
-  background: '#0F0F1A',
-  surface: '#1A1A2E',
-  card: '#16213E',
-  primary: '#6C63FF',
-  primaryLight: '#8B83FF',
-  text: '#FFFFFF',
-  textSecondary: '#A0A0B8',
-  border: '#2A2A40',
-};
+const StatCard: React.FC<{ icon: any; value: string | number; label: string }> = ({ icon, value, label }) => (
+  <View style={styles.statCard}>
+    <Ionicons name={icon} size={20} color={COLORS.primary} />
+    <Text style={styles.statValue}>{value}</Text>
+    <Text style={styles.statLabel}>{label}</Text>
+  </View>
+);
+
+const Meta: React.FC<{ icon: any; text: string }> = ({ icon, text }) => (
+  <View style={styles.metaItem}>
+    <Ionicons name={icon} size={12} color={COLORS.textSecondary} />
+    <Text style={styles.metaText}>{text}</Text>
+  </View>
+);
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background ?? COLORS_LOCAL.background,
-  },
+  root: { flex: 1, backgroundColor: COLORS.background },
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: SPACING.lg ?? 20,
-    paddingVertical: SPACING.md ?? 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border ?? COLORS_LOCAL.border,
-    backgroundColor: COLORS.surface ?? COLORS_LOCAL.surface,
-    gap: 10,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
   },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: COLORS.text ?? COLORS_LOCAL.text,
-    letterSpacing: 0.3,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: SPACING.md ?? 16,
-    paddingTop: SPACING.lg ?? 20,
-  },
-  section: {
-    marginBottom: SPACING.xl ?? 24,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.textSecondary ?? COLORS_LOCAL.textSecondary,
-    marginBottom: SPACING.sm ?? 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-
-  // Weight input
-  weightInputRow: {
+  title: { color: COLORS.text, fontSize: 24, fontWeight: '800' },
+  levelBadge: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.card ?? COLORS_LOCAL.card,
-    borderRadius: 14,
+    gap: 4,
+    backgroundColor: `${COLORS.accent}22`,
+    borderColor: `${COLORS.accent}44`,
     borderWidth: 1,
-    borderColor: COLORS.border ?? COLORS_LOCAL.border,
-    paddingHorizontal: SPACING.md ?? 16,
-    paddingVertical: SPACING.sm ?? 10,
-    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: RADIUS.pill,
+    alignItems: 'center',
   },
+  levelBadgeText: { color: COLORS.accent, fontWeight: '900', fontSize: 11, letterSpacing: 0.8 },
+
+  sectionTitle: {
+    color: COLORS.textMuted,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.sm,
+  },
+  card: {
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardTitle: { color: COLORS.text, fontSize: 14, fontWeight: '800' },
+  cardSub: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
+
+  xpRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: SPACING.sm },
+  xpCurrent: { color: COLORS.accent, fontSize: 28, fontWeight: '900' },
+  xpTarget: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '700' },
+  bar: { height: 6, backgroundColor: COLORS.surface, borderRadius: 3, overflow: 'hidden', marginTop: 4 },
+  barFill: { height: '100%' },
+  levelLadder: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: SPACING.md,
+  },
+  ladderItem: { alignItems: 'center' },
+  ladderDot: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ladderNum: { color: COLORS.textSecondary, fontWeight: '800', fontSize: 10 },
+
+  weightInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   weightInput: {
     flex: 1,
-    fontSize: 20,
-    fontWeight: '600',
-    color: COLORS.text ?? COLORS_LOCAL.text,
-    paddingVertical: 4,
-  },
-  weightUnit: {
-    fontSize: 16,
-    color: COLORS.textSecondary ?? COLORS_LOCAL.textSecondary,
-    fontWeight: '500',
-    marginRight: 4,
-  },
-  saveButton: {
-    backgroundColor: COLORS.primary ?? COLORS_LOCAL.primary,
-    borderRadius: 10,
-    paddingHorizontal: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    color: COLORS.text,
+    fontSize: 22,
+    fontWeight: '800',
+    paddingHorizontal: SPACING.md,
     paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 110,
-  },
-  saveButtonDisabled: {
-    opacity: 0.5,
-  },
-  saveButtonSuccess: {
-    backgroundColor: '#27AE60',
-  },
-  saveButtonText: {
-    color: COLORS.text ?? COLORS_LOCAL.text,
-    fontWeight: '700',
-    fontSize: 14,
-  },
-
-  // Chart
-  emptyCard: {
-    backgroundColor: COLORS.card ?? COLORS_LOCAL.card,
-    borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border ?? COLORS_LOCAL.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 36,
-    gap: 8,
+    borderColor: COLORS.border,
   },
-  emptyText: {
-    color: COLORS.textSecondary ?? COLORS_LOCAL.textSecondary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  emptySubText: {
-    color: COLORS.textSecondary ?? COLORS_LOCAL.textSecondary,
-    fontSize: 13,
-    textAlign: 'center',
-    paddingHorizontal: 24,
-  },
-  chartCard: {
-    backgroundColor: COLORS.card ?? COLORS_LOCAL.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border ?? COLORS_LOCAL.border,
-    padding: SPACING.md ?? 16,
-  },
-  chartBars: {
+  weightUnit: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '700' },
+  saveBtn: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    height: BAR_MAX_HEIGHT + 48,
-    paddingTop: 8,
-  },
-  barWrapper: {
-    flex: 1,
+    gap: 6,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 10,
+    borderRadius: RADIUS.md,
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginHorizontal: 2,
   },
-  barWeightLabel: {
-    fontSize: 9,
-    color: COLORS.textSecondary ?? COLORS_LOCAL.textSecondary,
-    marginBottom: 3,
-    textAlign: 'center',
-  },
-  barTrack: {
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    height: BAR_MAX_HEIGHT,
-  },
-  bar: {
-    width: '70%',
-    borderRadius: 4,
-    minHeight: 4,
-  },
-  barDateLabel: {
-    fontSize: 9,
-    color: COLORS.textSecondary ?? COLORS_LOCAL.textSecondary,
-    marginTop: 5,
-    textAlign: 'center',
-  },
-  chartLegend: {
-    marginTop: 8,
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border ?? COLORS_LOCAL.border,
-    paddingTop: 8,
-  },
-  chartLegendText: {
-    fontSize: 11,
-    color: COLORS.textSecondary ?? COLORS_LOCAL.textSecondary,
-  },
+  saveBtnText: { color: '#08110D', fontWeight: '900', fontSize: 11, letterSpacing: 0.8 },
 
-  // Stats grid
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.sm ?? 10,
-  },
+  empty: { alignItems: 'center', padding: SPACING.lg, gap: 6 },
+  emptyText: { color: COLORS.textSecondary, fontSize: 12 },
+
+  chart: { flexDirection: 'row', justifyContent: 'space-between', height: BAR_HEIGHT + 40, marginTop: SPACING.md },
+  barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', marginHorizontal: 1 },
+  barLabel: { fontSize: 9, color: COLORS.textSecondary, marginBottom: 3 },
+  barTrack: { width: '100%', alignItems: 'center', justifyContent: 'flex-end', height: BAR_HEIGHT },
+  weightBar: { width: '70%', borderTopLeftRadius: 4, borderTopRightRadius: 4, minHeight: 4 },
+  barDate: { fontSize: 9, color: COLORS.textMuted, marginTop: 4, fontWeight: '700' },
+  chartLegend: { marginTop: SPACING.sm, alignItems: 'center', borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: SPACING.sm },
+  chartLegendText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '600' },
+
+  statGrid: { flexDirection: 'row', gap: 8 },
   statCard: {
     flex: 1,
-    minWidth: '40%',
-    backgroundColor: COLORS.card ?? COLORS_LOCAL.card,
-    borderRadius: 16,
+    backgroundColor: COLORS.card,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border ?? COLORS_LOCAL.border,
-    padding: SPACING.md ?? 16,
+    borderColor: COLORS.border,
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
-  statCardWide: {
-    flexBasis: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: 14,
+  statValue: { color: COLORS.text, fontSize: 22, fontWeight: '900' },
+  statLabel: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
+
+  workoutCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 8,
   },
-  statIconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: `${COLORS_LOCAL.primary}22`,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: COLORS.text ?? COLORS_LOCAL.text,
-    lineHeight: 32,
-  },
-  statValueSmall: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text ?? COLORS_LOCAL.text,
-    textTransform: 'capitalize',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary ?? COLORS_LOCAL.textSecondary,
-    textAlign: 'center',
-    lineHeight: 16,
-  },
+  workoutHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  workoutName: { color: COLORS.text, fontSize: 14, fontWeight: '800', flex: 1, marginRight: 8 },
+  workoutDate: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
+  workoutMeta: { flexDirection: 'row', gap: SPACING.md },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaText: { color: COLORS.textSecondary, fontSize: 11 },
 });
