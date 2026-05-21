@@ -68,6 +68,16 @@ export default function EnergyRing({
   const remaining = Math.max(0, kcalTarget - kcal);
   const isOver = kcal > kcalTarget;
 
+  // Auto-scale du nombre central selon le nombre de chiffres et la taille de l'anneau.
+  // Largeur exploitable = diamètre intérieur - 2× la stroke de l'arc principal (10), moins marge.
+  const kcalStr = String(kcal);
+  const digits = Math.max(1, kcalStr.length);
+  const innerDiameter = size - 28; // diamètre dispo à l'intérieur du dernier arc
+  // Largeur par chiffre : on alloue ~0.55em par digit (chiffres tabulaires sont plus étroits que ça).
+  const fontByDigits = innerDiameter / (digits * 0.6 + 0.5);
+  const kcalFont = Math.min(size * 0.26, Math.max(14, fontByDigits));
+  const lineHeight = kcalFont * 1.0;
+
   return (
     <View style={[styles.wrap, { width: size, height: size }]}>
       <Svg width={size} height={size}>
@@ -125,13 +135,24 @@ export default function EnergyRing({
       </Svg>
 
       {/* Contenu central absolu */}
-      <View style={styles.center} pointerEvents="none">
-        <Text style={styles.kcal}>{kcal}</Text>
-        <Text style={styles.kcalUnit}>kcal</Text>
-        <Text style={styles.target}>
-          {isOver ? `+${kcal - kcalTarget} au-dessus` : `${remaining} restantes`}
+      <View style={[styles.center, { maxWidth: innerDiameter }]} pointerEvents="none">
+        <Text
+          style={[styles.kcal, { fontSize: kcalFont, lineHeight }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.5}
+        >
+          {kcal}
         </Text>
-        {caption && <Text style={styles.caption}>{caption}</Text>}
+        <Text style={styles.kcalUnit}>kcal</Text>
+        {size >= 140 && (
+          <>
+            <Text style={styles.target} numberOfLines={1}>
+              {isOver ? `+${kcal - kcalTarget} au-dessus` : `${remaining} restantes`}
+            </Text>
+            {caption && <Text style={styles.caption} numberOfLines={1}>{caption}</Text>}
+          </>
+        )}
       </View>
     </View>
   );
@@ -140,7 +161,7 @@ export default function EnergyRing({
 const styles = StyleSheet.create({
   wrap: { alignSelf: 'center', justifyContent: 'center', alignItems: 'center' },
   center: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  kcal: { color: COLORS.text, fontSize: 44, fontWeight: '900', letterSpacing: -1, lineHeight: 48 },
+  kcal: { color: COLORS.text, fontWeight: '900', letterSpacing: -1, textAlign: 'center' },
   kcalUnit: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '800', letterSpacing: 1.5, marginTop: 2 },
   target: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', marginTop: 6 },
   caption: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', marginTop: 2 },

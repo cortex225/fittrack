@@ -101,6 +101,16 @@ export interface Recipe {
   image?: string;
 }
 
+// ── Shopping list ──────────────────────────────────────────────────────────
+export interface ShoppingItem {
+  id: string;
+  name: string;     // libellé tel que stocké, ex. "Poulet 200g"
+  normalized: string; // pour dédoublonnage : minuscules + sans accents
+  checked: boolean;
+  recipes: string[];  // noms des recettes qui ont contribué cet ingrédient
+  addedAt: string;    // ISO
+}
+
 // ── Body metrics ───────────────────────────────────────────────────────────
 export interface WeightEntry {
   date: string; // YYYY-MM-DD

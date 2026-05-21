@@ -20,6 +20,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { COLORS, RADIUS, SPACING } from '../theme';
 import { useApp } from '../contexts/AppContext';
 import {
+  addIngredientsToShoppingList,
   generateId,
   getFavorites,
   getTodayNutrition,
@@ -286,6 +287,19 @@ export default function NutritionScreen() {
     playFx(exists ? 'click' : 'success');
   };
 
+  const addRecipeToShoppingList = async (r: Recipe) => {
+    await addIngredientsToShoppingList(r.ingredients, r.name);
+    playFx('success');
+    Alert.alert(
+      'Ajouté au panier',
+      `${r.ingredients.length} ingrédients de "${r.name}" ajoutés à ta liste de course.`,
+      [
+        { text: 'OK', style: 'cancel' },
+        { text: 'Voir la liste', onPress: () => navigation.navigate('ShoppingList') },
+      ]
+    );
+  };
+
   const handleSwipeLike = async (r: Recipe) => {
     playFx('success');
     // ajoute en favori si pas déjà là
@@ -329,12 +343,19 @@ export default function NutritionScreen() {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
 
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.title}>Nutrition</Text>
           <Text style={styles.subtitle}>
             {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
           </Text>
         </View>
+        <TouchableOpacity
+          style={styles.cartBtn}
+          onPress={() => navigation.navigate('ShoppingList')}
+          hitSlop={8}
+        >
+          <Ionicons name="cart-outline" size={18} color={COLORS.text} />
+        </TouchableOpacity>
         <View style={styles.remainingChip}>
           <Text style={styles.remainingLabel}>RESTANT</Text>
           <Text style={[styles.remainingValue, remaining < 0 && { color: COLORS.danger }]}>{remaining}</Text>
@@ -717,7 +738,16 @@ export default function NutritionScreen() {
                     <Text style={styles.metaText}>{activeRecipe.difficulty}</Text>
                   </View>
                 </View>
-                <Text style={styles.sectionTitle}>INGRÉDIENTS</Text>
+                <View style={styles.ingHeader}>
+                  <Text style={styles.sectionTitle}>INGRÉDIENTS</Text>
+                  <TouchableOpacity
+                    style={styles.addToCartBtn}
+                    onPress={() => activeRecipe && addRecipeToShoppingList(activeRecipe)}
+                  >
+                    <Ionicons name="cart-outline" size={13} color={COLORS.primary} />
+                    <Text style={styles.addToCartText}>AU PANIER</Text>
+                  </TouchableOpacity>
+                </View>
                 {activeRecipe.ingredients.map((ing, i) => (
                   <View key={i} style={styles.ingRow}>
                     <View style={styles.ingDot} />
@@ -818,6 +848,35 @@ const styles = StyleSheet.create({
   remainingLabel: { color: COLORS.primary, fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
   remainingValue: { color: COLORS.text, fontSize: 22, fontWeight: '900', lineHeight: 24 },
   remainingUnit: { color: COLORS.textSecondary, fontSize: 10, fontWeight: '700' },
+
+  cartBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.sm,
+  },
+  ingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  addToCartBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: RADIUS.pill,
+    backgroundColor: `${COLORS.primary}15`,
+    borderWidth: 1,
+    borderColor: `${COLORS.primary}55`,
+  },
+  addToCartText: { color: COLORS.primary, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
 
   actionGrid: { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap', marginBottom: SPACING.md },
   actionTile: {

@@ -8,6 +8,7 @@ import {
   LibraryExercise,
   NutritionLog,
   Recipe,
+  ShoppingItem,
   UserProfile,
   WeightEntry,
   Workout,
@@ -29,6 +30,7 @@ const KEYS = {
   SETTINGS: '@jlfit_settings',
   FAVORITES: '@jlfit_favorites',
   CUSTOM_WORKOUTS: '@jlfit_custom_workouts',
+  SHOPPING: '@jlfit_shopping',
 };
 
 const SECURE_KEYS = {
@@ -138,6 +140,19 @@ export const getTodayNutrition = async (): Promise<NutritionLog> =>
 
 export const saveNutritionLog = async (log: NutritionLog): Promise<void> => {
   await AsyncStorage.setItem(nutritionKey(log.date), JSON.stringify(log));
+};
+
+// Récupère les kcal/jour sur N jours (du plus ancien au plus récent).
+export const getNutritionKcalRange = async (days: number): Promise<number[]> => {
+  const out: number[] = [];
+  const today = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const log = await getNutritionLog(formatDateKey(d));
+    out.push(log.meals.reduce((a, m) => a + m.calories, 0));
+  }
+  return out;
 };
 
 // ── Weight ─────────────────────────────────────────────────────────────────
@@ -350,6 +365,98 @@ export const defaultLibraryExercise = (overrides: Partial<LibraryExercise>): Lib
   rest: 60,
   ...overrides,
 });
+
+// ── Shopping list (consolidée par nom normalisé) ───────────────────────────
+const normalizeIngredient = (s: string): string =>
+  s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+
+export const getShoppingList = async (): Promise<ShoppingItem[]> => {
+  const data = await AsyncStorage.getItem(KEYS.SHOPPING);
+  return data ? JSON.parse(data) : [];
+};
+
+const persistShoppingList = (list: ShoppingItem[]) =>
+  AsyncStorage.setItem(KEYS.SHOPPING, JSON.stringify(list));
+
+export const addIngredientsToShoppingList = async (
+  ingredients: string[],
+  recipeName: string
+): Promise<ShoppingItem[]> => {
+  const list = await getShoppingList();
+  const map = new Map<string, ShoppingItem>(list.map((it) => [it.normalized, it]));
+
+  for (const raw of ingredients) {
+    const name = raw.trim();
+    if (!name) continue;
+    const key = normalizeIngredient(name);
+    if (!key) continue;
+    const existing = map.get(key);
+    if (existing) {
+      if (!existing.recipes.includes(recipeName)) existing.recipes = [...existing.recipes, recipeName];
+    } else {
+      map.set(key, {
+        id: generateId(),
+        name,
+        normalized: key,
+        checked: false,
+        recipes: [recipeName],
+        addedAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  const next = Array.from(map.values()).sort((a, b) => Number(a.checked) - Number(b.checked));
+  await persistShoppingList(next);
+  return next;
+};
+
+export const addManualShoppingItem = async (name: string): Promise<ShoppingItem[]> => {
+  const list = await getShoppingList();
+  const key = normalizeIngredient(name);
+  if (!key) return list;
+  if (list.some((it) => it.normalized === key)) return list;
+  const next: ShoppingItem[] = [
+    {
+      id: generateId(),
+      name: name.trim(),
+      normalized: key,
+      checked: false,
+      recipes: [],
+      addedAt: new Date().toISOString(),
+    },
+    ...list,
+  ];
+  await persistShoppingList(next);
+  return next;
+};
+
+export const toggleShoppingItem = async (id: string): Promise<ShoppingItem[]> => {
+  const list = await getShoppingList();
+  const next = list
+    .map((it) => (it.id === id ? { ...it, checked: !it.checked } : it))
+    .sort((a, b) => Number(a.checked) - Number(b.checked));
+  await persistShoppingList(next);
+  return next;
+};
+
+export const removeShoppingItem = async (id: string): Promise<ShoppingItem[]> => {
+  const list = await getShoppingList();
+  const next = list.filter((it) => it.id !== id);
+  await persistShoppingList(next);
+  return next;
+};
+
+export const clearCheckedShoppingItems = async (): Promise<ShoppingItem[]> => {
+  const list = await getShoppingList();
+  const next = list.filter((it) => !it.checked);
+  await persistShoppingList(next);
+  return next;
+};
+
+export const clearShoppingList = async (): Promise<ShoppingItem[]> => {
+  await persistShoppingList([]);
+  return [];
+};
 
 // ── Favorites (recipes) ────────────────────────────────────────────────────
 export const getFavorites = async (): Promise<Recipe[]> => {
