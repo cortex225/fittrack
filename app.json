@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "JL Fit",
-    "slug": "jl-fit",
+    "slug": "fit-jl",
     "scheme": "jlfit",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -34,7 +34,9 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.READ_MEDIA_IMAGES"
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -57,6 +59,12 @@
       "expo-secure-store",
       "expo-audio",
       "expo-asset"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "2f5ddaba-0b4f-4724-a4e8-fd3ef08f49dd"
+      }
+    },
+    "owner": "cortex225"
   }
 }

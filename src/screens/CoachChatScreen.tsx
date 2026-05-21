@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RADIUS, SPACING } from '../theme';
@@ -20,6 +20,7 @@ import { ChatTurn, MissingApiKeyError, coachChat } from '../services/gemini';
 
 export default function CoachChatScreen() {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const insets = useSafeAreaInsets();
   const { profile, goal, settings, playFx } = useApp();
 
@@ -32,6 +33,13 @@ export default function CoachChatScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const listRef = useRef<FlatList<ChatTurn>>(null);
+
+  // Si un seedMessage est passé en route param (depuis la bibliothèque d'exercices ou Training),
+  // on le pré-remplit dans l'input — l'utilisateur peut toujours l'éditer avant d'envoyer.
+  useEffect(() => {
+    const seed = route.params?.seedMessage;
+    if (seed && typeof seed === 'string') setInput(seed);
+  }, [route.params?.seedMessage]);
 
   const send = async () => {
     const msg = input.trim();
@@ -94,18 +102,24 @@ export default function CoachChatScreen() {
           ref={listRef}
           data={messages}
           keyExtractor={(_, i) => String(i)}
-          renderItem={({ item }) => (
-            <View
-              style={[
-                styles.bubble,
-                item.role === 'user' ? styles.bubbleUser : styles.bubbleModel,
-              ]}
-            >
-              <Text style={[styles.bubbleText, item.role === 'user' && { color: '#08110D' }]}>
-                {item.text}
-              </Text>
-            </View>
-          )}
+          renderItem={({ item }) => {
+            const isUser = item.role === 'user';
+            const textColor = isUser ? '#08110D' : COLORS.text;
+            return (
+              <View
+                style={[
+                  styles.bubble,
+                  isUser ? styles.bubbleUser : styles.bubbleModel,
+                ]}
+              >
+                {isUser ? (
+                  <Text style={[styles.bubbleText, { color: textColor }]}>{item.text}</Text>
+                ) : (
+                  <MarkdownText text={item.text} color={textColor} />
+                )}
+              </View>
+            );
+          }}
           contentContainerStyle={{ padding: SPACING.md, paddingBottom: SPACING.lg }}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           ListFooterComponent={
@@ -133,6 +147,71 @@ export default function CoachChatScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+// ── Markdown léger (gras + listes num/puces + paragraphes) ───────────────────
+function renderInline(text: string, color: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const regex = /\*\*([^*]+)\*\*/g;
+  let lastIndex = 0;
+  let m: RegExpExecArray | null;
+  let key = 0;
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > lastIndex) parts.push(text.slice(lastIndex, m.index));
+    parts.push(
+      <Text key={`b-${key++}`} style={{ fontWeight: '900', color }}>
+        {m[1]}
+      </Text>
+    );
+    lastIndex = m.index + m[0].length;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts;
+}
+
+function MarkdownText({ text, color }: { text: string; color: string }) {
+  const lines = text.split('\n');
+  return (
+    <View>
+      {lines.map((line, i) => {
+        const trimmed = line.trimStart();
+        const num = trimmed.match(/^(\d+)\.\s+(.*)$/);
+        const bullet = trimmed.match(/^[-*]\s+(.*)$/);
+        const heading = trimmed.match(/^(#{1,3})\s+(.*)$/);
+
+        if (trimmed === '') return <View key={i} style={{ height: 8 }} />;
+
+        if (heading) {
+          return (
+            <Text key={i} style={[styles.mdHeading, { color }]}>
+              {renderInline(heading[2], color)}
+            </Text>
+          );
+        }
+        if (num) {
+          return (
+            <View key={i} style={styles.mdListRow}>
+              <Text style={[styles.mdMarker, { color }]}>{num[1]}.</Text>
+              <Text style={[styles.mdItem, { color }]}>{renderInline(num[2], color)}</Text>
+            </View>
+          );
+        }
+        if (bullet) {
+          return (
+            <View key={i} style={styles.mdListRow}>
+              <Text style={[styles.mdMarker, { color }]}>•</Text>
+              <Text style={[styles.mdItem, { color }]}>{renderInline(bullet[1], color)}</Text>
+            </View>
+          );
+        }
+        return (
+          <Text key={i} style={[styles.mdPara, { color }]}>
+            {renderInline(trimmed, color)}
+          </Text>
+        );
+      })}
     </View>
   );
 }
@@ -179,6 +258,12 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   bubbleText: { color: COLORS.text, fontSize: 14, lineHeight: 20 },
+
+  mdPara: { fontSize: 14, lineHeight: 20, marginBottom: 2 },
+  mdHeading: { fontSize: 15, lineHeight: 22, fontWeight: '900', marginTop: 4, marginBottom: 4 },
+  mdListRow: { flexDirection: 'row', gap: 8, marginVertical: 2 },
+  mdMarker: { fontSize: 14, lineHeight: 20, fontWeight: '800', minWidth: 18 },
+  mdItem: { flex: 1, fontSize: 14, lineHeight: 20 },
 
   inputBar: {
     flexDirection: 'row',

@@ -17,6 +17,8 @@ import StatsScreen from './src/screens/StatsScreen';
 import LiveWorkoutScreen from './src/screens/LiveWorkoutScreen';
 import CoachChatScreen from './src/screens/CoachChatScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import ExerciseLibraryScreen from './src/screens/ExerciseLibraryScreen';
+import WorkoutBuilderScreen from './src/screens/WorkoutBuilderScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -107,6 +109,16 @@ function RootShell() {
             name="Settings"
             component={SettingsScreen}
             options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="ExerciseLibrary"
+            component={ExerciseLibraryScreen}
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="WorkoutBuilder"
+            component={WorkoutBuilderScreen}
+            options={{ animation: 'slide_from_bottom', presentation: 'fullScreenModal' }}
           />
         </Stack.Navigator>
       </NavigationContainer>

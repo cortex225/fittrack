@@ -15,6 +15,10 @@ import { COLORS, RADIUS, SPACING } from '../theme';
 import { Exercise, Set, WorkoutSession } from '../types';
 import { generateId, saveWorkout } from '../utils/storage';
 import { useApp } from '../contexts/AppContext';
+import { findExerciseById, muscleFR } from '../services/exercises';
+import { AnimatedExerciseImage } from '../components/ExerciseCard';
+import MuscleMap from '../components/MuscleMap';
+import ExerciseDetailModal from '../components/ExerciseDetailModal';
 
 export default function LiveWorkoutScreen() {
   const navigation = useNavigation<any>();
@@ -28,18 +32,24 @@ export default function LiveWorkoutScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [rest, setRest] = useState<number | null>(null);
   const [done, setDone] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
 
   const [exercises, setExercises] = useState<Exercise[]>(() =>
-    session.exercises.map((ex) => ({
-      id: generateId(),
-      name: ex.name,
-      sets: Array.from({ length: ex.sets }).map(() => ({
+    session.exercises.map((ex) => {
+      const cat = ex.exerciseId ? findExerciseById(ex.exerciseId) : undefined;
+      return {
         id: generateId(),
-        reps: 0,
-        weight: 0,
-        completed: false,
-      })),
-    }))
+        name: ex.name,
+        exerciseId: ex.exerciseId,
+        musclesWorked: cat ? [...cat.primaryMuscles, ...cat.secondaryMuscles] : undefined,
+        sets: Array.from({ length: ex.sets }).map(() => ({
+          id: generateId(),
+          reps: 0,
+          weight: 0,
+          completed: false,
+        })),
+      };
+    })
   );
 
   const elapsedRef = useRef<any>(null);
@@ -179,6 +189,52 @@ export default function LiveWorkoutScreen() {
         contentContainerStyle={{ padding: SPACING.md, paddingBottom: 140 + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
+        {(() => {
+          const cat = currentSrc.exerciseId ? findExerciseById(currentSrc.exerciseId) : undefined;
+          if (cat) {
+            return (
+              <View style={styles.mediaBlock}>
+                <TouchableOpacity
+                  style={styles.mediaWrap}
+                  onPress={() => setShowDetail(true)}
+                  activeOpacity={0.9}
+                >
+                  <AnimatedExerciseImage exercise={cat} height={200} rounded />
+                  <View style={styles.mediaInfoBadge}>
+                    <Ionicons name="information-circle" size={18} color={COLORS.text} />
+                    <Text style={styles.mediaInfoText}>DÉTAIL</Text>
+                  </View>
+                </TouchableOpacity>
+                <View style={styles.musclesPreview}>
+                  <View style={styles.muscleMapSide}>
+                    <MuscleMap
+                      primaryMuscles={cat.primaryMuscles}
+                      secondaryMuscles={cat.secondaryMuscles}
+                      size={70}
+                    />
+                  </View>
+                  <View style={styles.musclePillsCol}>
+                    <Text style={styles.musclesHeading}>MUSCLES TRAVAILLÉS</Text>
+                    <View style={styles.musclePillsRow}>
+                      {cat.primaryMuscles.map((m) => (
+                        <View key={`p-${m}`} style={[styles.musclePill, styles.musclePillPrimary]}>
+                          <Text style={styles.musclePillPrimaryText}>{muscleFR(m)}</Text>
+                        </View>
+                      ))}
+                      {cat.secondaryMuscles.slice(0, 3).map((m) => (
+                        <View key={`s-${m}`} style={[styles.musclePill, styles.musclePillSecondary]}>
+                          <Text style={styles.musclePillSecondaryText}>{muscleFR(m)}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+              </View>
+            );
+          }
+          return null;
+        })()}
+
         <Text style={styles.exTitle}>{currentSrc.name}</Text>
         <Text style={styles.exMeta}>
           {currentSrc.sets} SÉRIES · {currentSrc.reps} REPS · {currentSrc.rest}s REPOS
@@ -274,6 +330,13 @@ export default function LiveWorkoutScreen() {
           />
         </TouchableOpacity>
       </View>
+
+      {/* Détail d'exercice depuis la GIF */}
+      <ExerciseDetailModal
+        visible={showDetail}
+        onClose={() => setShowDetail(false)}
+        libraryExercise={currentSrc}
+      />
     </View>
   );
 }
@@ -330,6 +393,55 @@ const styles = StyleSheet.create({
   },
   restText: { color: COLORS.primary, fontWeight: '900', fontSize: 14, letterSpacing: 1, flex: 1 },
   restSkip: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+
+  mediaBlock: { marginBottom: SPACING.md },
+  mediaWrap: {
+    width: '100%',
+    borderRadius: RADIUS.lg,
+    overflow: 'hidden',
+    backgroundColor: COLORS.surface,
+    position: 'relative',
+  },
+  mediaInfoBadge: {
+    position: 'absolute',
+    bottom: SPACING.sm,
+    right: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: RADIUS.pill,
+    backgroundColor: 'rgba(8, 17, 13, 0.75)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  mediaInfoText: { color: COLORS.text, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
+  musclesPreview: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  muscleMapSide: { width: 140, alignItems: 'center' },
+  musclePillsCol: { flex: 1, gap: 6 },
+  musclesHeading: { color: COLORS.textMuted, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
+  musclePillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  musclePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+  },
+  musclePillPrimary: { backgroundColor: `${COLORS.primary}22`, borderColor: COLORS.primary },
+  musclePillSecondary: { backgroundColor: COLORS.surface, borderColor: COLORS.border },
+  musclePillPrimaryText: { color: COLORS.primary, fontSize: 10, fontWeight: '800' },
+  musclePillSecondaryText: { color: COLORS.textSecondary, fontSize: 10, fontWeight: '700' },
 
   exTitle: {
     color: COLORS.text,

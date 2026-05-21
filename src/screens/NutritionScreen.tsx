@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -51,6 +51,7 @@ const DIFFICULTIES = [
 export default function NutritionScreen() {
   const insets = useSafeAreaInsets();
   const { profile, playFx, addXp } = useApp();
+  const route = useRoute<any>();
 
   const [log, setLog] = useState<NutritionLog | null>(null);
   const [favorites, setFavorites] = useState<Recipe[]>([]);
@@ -86,10 +87,27 @@ export default function NutritionScreen() {
     setFavorites(fs);
   }, []);
 
+  const navigation = useNavigation<any>();
+
   useFocusEffect(
     useCallback(() => {
       loadData();
     }, [loadData])
+  );
+
+  // Deep-link depuis Dashboard : autoOpen='camera' | 'manual'
+  useFocusEffect(
+    useCallback(() => {
+      const auto = route.params?.autoOpen;
+      if (auto === 'camera') {
+        pickFromCamera();
+        navigation.setParams({ autoOpen: undefined });
+      } else if (auto === 'manual') {
+        setManualOpen(true);
+        navigation.setParams({ autoOpen: undefined });
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [route.params?.autoOpen])
   );
 
   const meals = log?.meals ?? [];

@@ -106,13 +106,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const playFx = useCallback((fx: FxType) => playFxFn(fx), []);
 
   const value = useMemo<AppContextValue>(() => {
-    const safeProfile = profile ?? {
+    const safeProfile: UserProfile = profile ?? {
       name: 'Athlète',
-      goal: 'maintain' as GoalType,
+      goal: 'maintain',
       weightKg: 80,
       heightCm: 178,
       age: 30,
-      sex: 'male' as const,
+      sex: 'male',
+      activityLevel: 'moderate',
       tee: 2700,
       targetCalories: 2700,
       targetProtein: 160,

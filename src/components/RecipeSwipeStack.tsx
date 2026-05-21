@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
   PanResponder,
@@ -17,8 +18,17 @@ const { width: SCREEN_W } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_W * 0.28;
 
 export function recipeImageUrl(keyword: string, seed: string): string {
-  const prompt = `${keyword}, food photography, top down, vibrant, appetizing`;
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=600&height=420&nologo=true&seed=${encodeURIComponent(seed)}`;
+  // Pollinations attend un seed numérique — hash le nom de la recette pour
+  // garantir un seed unique par carte (sinon toutes les recettes reçoivent la même image).
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+  }
+  const numericSeed = Math.abs(hash) || 1;
+  // On inclut aussi le nom dans le prompt : si Gemini renvoie le même imageKeyword
+  // pour plusieurs recettes, le prompt reste différent et l'image aussi.
+  const prompt = `${keyword}, ${seed}, food photography, top down, vibrant, appetizing`;
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=600&height=420&nologo=true&seed=${numericSeed}`;
 }
 
 interface Props {
@@ -149,9 +159,33 @@ export default function RecipeSwipeStack({ recipes, onLike, onSkip, onDetails, o
 
 function RecipeCardContent({ recipe }: { recipe: Recipe }) {
   const img = recipe.image ?? recipeImageUrl(recipe.imageKeyword, recipe.name);
+  const [loaded, setLoaded] = useState(false);
+  const [errored, setErrored] = useState(false);
   return (
     <>
-      <Image source={{ uri: img }} style={styles.cardImage} contentFit="cover" transition={200} />
+      <Image
+        source={{ uri: img }}
+        style={styles.cardImage}
+        contentFit="cover"
+        transition={200}
+        onLoad={() => setLoaded(true)}
+        onError={() => setErrored(true)}
+      />
+      {!loaded && (
+        <View style={styles.imagePlaceholder} pointerEvents="none">
+          {errored ? (
+            <>
+              <Ionicons name="image-outline" size={32} color={COLORS.textMuted} />
+              <Text style={styles.imagePlaceholderText}>Image indisponible</Text>
+            </>
+          ) : (
+            <>
+              <ActivityIndicator color={COLORS.primary} />
+              <Text style={styles.imagePlaceholderText}>Génération de l'image…</Text>
+            </>
+          )}
+        </View>
+      )}
       <View style={styles.cardOverlay} />
       <View style={styles.cardInfo}>
         <Text style={styles.recipeName} numberOfLines={2}>
@@ -223,6 +257,23 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '60%',
     backgroundColor: COLORS.surface,
+  },
+  imagePlaceholder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '60%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.surface,
+  },
+  imagePlaceholderText: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
   cardOverlay: {
     position: 'absolute',

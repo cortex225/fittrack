@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -25,8 +25,18 @@ import {
 } from '../utils/storage';
 import { LEVELS } from '../data/library';
 import { WeightEntry, Workout } from '../types';
+import MuscleSpiderChart from '../components/MuscleSpiderChart';
 
 const BAR_HEIGHT = 96;
+
+type Period = '7d' | '30d' | '365d' | 'all';
+
+const PERIOD_LABELS: Record<Period, { label: string; days: number | null }> = {
+  '7d':   { label: '7J',    days: 7 },
+  '30d':  { label: '30J',   days: 30 },
+  '365d': { label: '1 AN',  days: 365 },
+  'all':  { label: 'TOUT',  days: null },
+};
 
 export default function StatsScreen() {
   const insets = useSafeAreaInsets();
@@ -36,6 +46,37 @@ export default function StatsScreen() {
   const [history, setHistory] = useState<WeightEntry[]>([]);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [saving, setSaving] = useState(false);
+  const [period, setPeriod] = useState<Period>('7d');
+
+  // Workouts filtrés selon la période sélectionnée
+  const filteredWorkouts = useMemo(() => {
+    const cfg = PERIOD_LABELS[period];
+    if (cfg.days === null) return workouts;
+    const since = Date.now() - cfg.days * 24 * 60 * 60 * 1000;
+    return workouts.filter((w) => new Date(w.date).getTime() >= since);
+  }, [workouts, period]);
+
+  // Volume par muscle agrégé pour le spider chart
+  const muscleVolume = useMemo(() => {
+    const acc: Record<string, number> = {};
+    for (const w of filteredWorkouts) {
+      for (const ex of w.exercises) {
+        const completed = ex.sets.filter((s) => s.completed).length;
+        if (!ex.musclesWorked?.length) continue;
+        for (const m of ex.musclesWorked) {
+          acc[m] = (acc[m] ?? 0) + completed;
+        }
+      }
+    }
+    return acc;
+  }, [filteredWorkouts]);
+
+  // Top muscle group (label FR)
+  const topMuscle = useMemo(() => {
+    const entries = Object.entries(muscleVolume);
+    if (entries.length === 0) return null;
+    return entries.sort(([, a], [, b]) => b - a)[0];
+  }, [muscleVolume]);
 
   const load = useCallback(async () => {
     const [h, w] = await Promise.all([getWeightHistory(), getWorkouts()]);
@@ -88,12 +129,12 @@ export default function StatsScreen() {
     return ((w - minW) / span) * (BAR_HEIGHT * 0.7) + BAR_HEIGHT * 0.3;
   };
 
-  const totalWorkouts = workouts.length;
-  const totalSets = workouts.reduce(
+  const totalWorkouts = filteredWorkouts.length;
+  const totalSets = filteredWorkouts.reduce(
     (a, w) => a + w.exercises.reduce((b, e) => b + e.sets.filter((s) => s.completed).length, 0),
     0
   );
-  const totalVolume = workouts.reduce(
+  const totalVolume = filteredWorkouts.reduce(
     (a, w) =>
       a +
       w.exercises.reduce(
@@ -101,6 +142,9 @@ export default function StatsScreen() {
         0
       ),
     0
+  );
+  const totalMinutes = Math.round(
+    filteredWorkouts.reduce((a, w) => a + w.duration, 0) / 60
   );
 
   const formatDateLabel = (date: string) => {
@@ -158,6 +202,61 @@ export default function StatsScreen() {
           </View>
         </View>
 
+        {/* Filtres temporels */}
+        <View style={styles.periodRow}>
+          {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => {
+            const active = period === p;
+            return (
+              <TouchableOpacity
+                key={p}
+                style={[styles.periodChip, active && styles.periodChipActive]}
+                onPress={() => setPeriod(p)}
+              >
+                <Text style={[styles.periodChipText, active && { color: '#08110D' }]}>
+                  {PERIOD_LABELS[p].label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Stats du training filtrées */}
+        <View style={styles.statGrid}>
+          <StatCard icon="barbell-outline" value={totalWorkouts} label="Séances" />
+          <StatCard icon="time-outline" value={`${totalMinutes}`} label="Minutes" />
+          <StatCard icon="repeat-outline" value={totalSets} label="Séries" />
+          <StatCard
+            icon="trending-up-outline"
+            value={totalVolume > 999 ? `${(totalVolume / 1000).toFixed(1)}k` : totalVolume}
+            label="Vol. (kg)"
+          />
+        </View>
+
+        {/* Spider chart muscles */}
+        <Text style={styles.sectionTitle}>MUSCLES TRAVAILLÉS</Text>
+        <View style={styles.card}>
+          {Object.keys(muscleVolume).length === 0 ? (
+            <View style={styles.empty}>
+              <Ionicons name="body-outline" size={32} color={COLORS.border} />
+              <Text style={styles.emptyText}>
+                Aucune séance loggée sur cette période. Lance une séance pour voir ton équilibre.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <MuscleSpiderChart muscleVolume={muscleVolume} size={280} />
+              {topMuscle && (
+                <View style={styles.topMuscleRow}>
+                  <Ionicons name="flame" size={14} color={COLORS.primary} />
+                  <Text style={styles.topMuscleText}>
+                    Top : <Text style={{ color: COLORS.text, fontWeight: '900' }}>{topMuscle[0]}</Text> · {topMuscle[1]} séries
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+        </View>
+
         {/* Weight */}
         <Text style={styles.sectionTitle}>POIDS</Text>
         <View style={styles.card}>
@@ -212,23 +311,11 @@ export default function StatsScreen() {
           )}
         </View>
 
-        {/* Workouts summary */}
-        <Text style={styles.sectionTitle}>ENTRAÎNEMENTS</Text>
-        <View style={styles.statGrid}>
-          <StatCard icon="barbell-outline" value={totalWorkouts} label="Séances" />
-          <StatCard icon="repeat-outline" value={totalSets} label="Séries" />
-          <StatCard
-            icon="trending-up-outline"
-            value={totalVolume > 999 ? `${(totalVolume / 1000).toFixed(1)}k` : totalVolume}
-            label="Vol. (kg)"
-          />
-        </View>
-
-        {/* Workout history */}
-        {workouts.length > 0 && (
+        {/* Workout history (filtré sur la période) */}
+        {filteredWorkouts.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>HISTORIQUE</Text>
-            {workouts.slice(0, 10).map((w) => {
+            <Text style={styles.sectionTitle}>HISTORIQUE ({filteredWorkouts.length})</Text>
+            {filteredWorkouts.slice(0, 10).map((w) => {
               const completedSets = w.exercises.reduce(
                 (a, e) => a + e.sets.filter((s) => s.completed).length,
                 0
@@ -364,7 +451,32 @@ const styles = StyleSheet.create({
   saveBtnText: { color: '#08110D', fontWeight: '900', fontSize: 11, letterSpacing: 0.8 },
 
   empty: { alignItems: 'center', padding: SPACING.lg, gap: 6 },
-  emptyText: { color: COLORS.textSecondary, fontSize: 12 },
+  emptyText: { color: COLORS.textSecondary, fontSize: 12, textAlign: 'center' },
+
+  periodRow: { flexDirection: 'row', gap: 6, marginTop: SPACING.lg, marginBottom: SPACING.sm },
+  periodChip: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  periodChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  periodChipText: { color: COLORS.textSecondary, fontWeight: '900', fontSize: 11, letterSpacing: 0.8 },
+
+  topMuscleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    justifyContent: 'center',
+  },
+  topMuscleText: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '700' },
 
   chart: { flexDirection: 'row', justifyContent: 'space-between', height: BAR_HEIGHT + 40, marginTop: SPACING.md },
   barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', marginHorizontal: 1 },
@@ -375,7 +487,7 @@ const styles = StyleSheet.create({
   chartLegend: { marginTop: SPACING.sm, alignItems: 'center', borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: SPACING.sm },
   chartLegendText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '600' },
 
-  statGrid: { flexDirection: 'row', gap: 8 },
+  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: SPACING.md },
   statCard: {
     flex: 1,
     backgroundColor: COLORS.card,

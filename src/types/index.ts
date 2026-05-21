@@ -1,5 +1,7 @@
 export type GoalType = 'cut' | 'maintain' | 'bulk';
 
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
+
 export type MealCategory = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
 // ── Workouts ───────────────────────────────────────────────────────────────
@@ -15,6 +17,8 @@ export interface Exercise {
   name: string;
   sets: Set[];
   muscleGroup?: string;
+  exerciseId?: string;       // ref vers le catalogue free-exercise-db
+  musclesWorked?: string[];  // union primaires + secondaires (stockés en EN comme dans le dataset)
 }
 
 export interface Workout {
@@ -36,6 +40,7 @@ export interface LibraryExercise {
   mistakes?: string[];
   goalSpecificTip?: string;
   gifUrl?: string;
+  exerciseId?: string; // ref vers le catalogue ExerciseDB (free-exercise-db)
 }
 
 export interface WorkoutSession {
@@ -43,6 +48,16 @@ export interface WorkoutSession {
   focus: string;
   type: string;
   exercises: LibraryExercise[];
+}
+
+// Séance créée manuellement par l'utilisateur, sauvegardée pour réutilisation.
+export interface CustomWorkout {
+  id: string;
+  name: string;
+  focus: string;
+  exercises: LibraryExercise[];
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
 }
 
 export interface ScheduleDay {
@@ -100,7 +115,8 @@ export interface UserProfile {
   heightCm: number;
   age: number;
   sex: 'male' | 'female' | 'other';
-  tee: number;            // total energy expenditure
+  activityLevel: ActivityLevel;
+  tee: number;            // total energy expenditure (auto-calculé)
   targetCalories: number;
   targetProtein: number;
   targetCarbs: number;

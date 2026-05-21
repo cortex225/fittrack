@@ -2,15 +2,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import {
   AppSettings,
+  CustomWorkout,
   Gamification,
   GoalType,
+  LibraryExercise,
   NutritionLog,
   Recipe,
   UserProfile,
   WeightEntry,
   Workout,
+  WorkoutSession,
 } from '../types';
 import { LEVELS } from '../data/library';
+import {
+  computeBMR,
+  computeSafeCalorieOffset,
+  computeTDEE,
+} from './health';
 
 const KEYS = {
   WORKOUTS: '@jlfit_workouts',
@@ -20,6 +28,7 @@ const KEYS = {
   GAMIFICATION: '@jlfit_gamification',
   SETTINGS: '@jlfit_settings',
   FAVORITES: '@jlfit_favorites',
+  CUSTOM_WORKOUTS: '@jlfit_custom_workouts',
 };
 
 const SECURE_KEYS = {
@@ -64,6 +73,58 @@ export const deleteWorkout = async (id: string): Promise<void> => {
   );
 };
 
+// Résumé textuel des séances des N derniers jours, à injecter dans le contexte IA.
+// Calcule : nombre de séances, durée totale, tonnage par muscle, exos les plus fréquents.
+export const getRecentTrainingContext = async (days = 7): Promise<string> => {
+  const workouts = await getWorkouts();
+  const since = Date.now() - days * 24 * 60 * 60 * 1000;
+  const recent = workouts.filter((w) => new Date(w.date).getTime() >= since);
+  if (recent.length === 0) {
+    return `Aucune séance loggée sur les ${days} derniers jours.`;
+  }
+
+  const muscleVolume: Record<string, number> = {};
+  const exerciseFreq: Record<string, number> = {};
+  let totalSets = 0;
+  let totalReps = 0;
+  let totalDurationMin = 0;
+
+  for (const w of recent) {
+    totalDurationMin += Math.round(w.duration / 60);
+    for (const ex of w.exercises) {
+      const completedSets = ex.sets.filter((s) => s.completed);
+      totalSets += completedSets.length;
+      const reps = completedSets.reduce((sum, s) => sum + s.reps, 0);
+      totalReps += reps;
+      exerciseFreq[ex.name] = (exerciseFreq[ex.name] ?? 0) + completedSets.length;
+      // Le tonnage approximatif (sets complétés) par muscle
+      if (ex.musclesWorked?.length) {
+        for (const m of ex.musclesWorked) {
+          muscleVolume[m] = (muscleVolume[m] ?? 0) + completedSets.length;
+        }
+      }
+    }
+  }
+
+  const topMuscles = Object.entries(muscleVolume)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 6)
+    .map(([m, v]) => `${m}: ${v} séries`)
+    .join(', ');
+
+  const topExercises = Object.entries(exerciseFreq)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5)
+    .map(([n]) => n)
+    .join(', ');
+
+  return [
+    `Historique ${days}j : ${recent.length} séance${recent.length > 1 ? 's' : ''}, ${totalDurationMin} min cumulées, ${totalSets} séries / ${totalReps} reps complétées.`,
+    topMuscles ? `Volume par muscle : ${topMuscles}.` : '',
+    topExercises ? `Exercices les plus pratiqués : ${topExercises}.` : '',
+  ].filter(Boolean).join(' ');
+};
+
 // ── Nutrition (per-day) ────────────────────────────────────────────────────
 const nutritionKey = (date: string) => `${KEYS.NUTRITION_PREFIX}${date}`;
 
@@ -103,6 +164,7 @@ const DEFAULT_PROFILE: UserProfile = {
   heightCm: 178,
   age: 30,
   sex: 'male',
+  activityLevel: 'moderate',
   tee: 2700,
   targetCalories: 2700,
   targetProtein: 160,
@@ -124,29 +186,37 @@ export const saveProfile = async (profile: Partial<UserProfile>): Promise<UserPr
   return next;
 };
 
+// Recalcule TEE, calories cibles et macros à partir du poids/taille/âge/sexe/activité/objectif.
+// TEE est auto-dérivé (BMR Mifflin-St Jeor × facteur d'activité). L'utilisateur n'a plus à le saisir.
 export const computeTargetsForGoal = (profile: UserProfile, goal: GoalType): UserProfile => {
-  const calorieOffset = GOAL_CONFIGS[goal].calorieOffset;
-  const targetCalories = Math.round(profile.tee + calorieOffset);
-  // protein ~2g/kg, fats ~0.9g/kg, rest = carbs
-  const targetProtein = Math.round(profile.weightKg * 2);
+  const bmr = computeBMR(profile);
+  const tee = computeTDEE(bmr, profile.activityLevel);
+  const calorieOffset = computeSafeCalorieOffset(tee, goal);
+  const targetCalories = Math.round(tee + calorieOffset);
+  // Protéines : 2.0 g/kg en sèche, 1.8 g/kg ailleurs (préserve la masse maigre en déficit).
+  // Lipides : 0.9 g/kg.
+  const proteinPerKg = goal === 'cut' ? 2.0 : 1.8;
+  const targetProtein = Math.round(profile.weightKg * proteinPerKg);
   const targetFats = Math.round(profile.weightKg * 0.9);
   const kcalFromProtFat = targetProtein * 4 + targetFats * 9;
   const targetCarbs = Math.max(0, Math.round((targetCalories - kcalFromProtFat) / 4));
+  // Hydratation : 35 ml/kg, plancher 2 L.
+  const targetWater = Math.max(2000, Math.round(profile.weightKg * 35));
   return {
     ...profile,
     goal,
+    tee,
     targetCalories,
     targetProtein,
     targetCarbs,
     targetFats,
+    targetWater,
   };
 };
 
-export const GOAL_CONFIGS: Record<GoalType, { label: string; calorieOffset: number; color: string }> = {
-  cut:      { label: 'Sèche',    calorieOffset: -500, color: '#EF4444' },
-  maintain: { label: 'Maintien', calorieOffset: 0,    color: '#10B981' },
-  bulk:     { label: 'Masse',    calorieOffset: 300,  color: '#3B82F6' },
-};
+// Conservé pour compat avec les écrans existants qui affichent les couleurs/labels.
+// La logique kcal est désormais dans utils/health.ts (GOAL_CONFIGS canonique).
+export { GOAL_CONFIGS } from './health';
 
 // ── Gamification ───────────────────────────────────────────────────────────
 const DEFAULT_GAMIFICATION: Gamification = { xp: 0, level: 1 };
@@ -191,8 +261,9 @@ const DEFAULT_SETTINGS: AppSettings = {
 export const getSettings = async (): Promise<AppSettings> => {
   const data = await AsyncStorage.getItem(KEYS.SETTINGS);
   const stored = data ? JSON.parse(data) : DEFAULT_SETTINGS;
-  // refresh hasApiKey from secure store
-  const key = await getApiKey();
+  // hasApiKey = vrai si clé embarquée OU clé stockée sur l'appareil.
+  const embedded = (process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '').length > 0;
+  const key = embedded ? 'embedded' : await getApiKey();
   return { ...DEFAULT_SETTINGS, ...stored, hasApiKey: !!key };
 };
 
@@ -220,6 +291,66 @@ export const setApiKey = async (key: string): Promise<void> => {
   }
 };
 
+// ── Custom workouts (séances perso sauvegardées) ───────────────────────────
+export const getCustomWorkouts = async (): Promise<CustomWorkout[]> => {
+  const data = await AsyncStorage.getItem(KEYS.CUSTOM_WORKOUTS);
+  return data ? JSON.parse(data) : [];
+};
+
+export const saveCustomWorkout = async (workout: CustomWorkout): Promise<CustomWorkout[]> => {
+  const list = await getCustomWorkouts();
+  const idx = list.findIndex((w) => w.id === workout.id);
+  const next = workout;
+  let updated: CustomWorkout[];
+  if (idx >= 0) {
+    updated = list.map((w, i) => (i === idx ? { ...next, updatedAt: new Date().toISOString() } : w));
+  } else {
+    updated = [{ ...next, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, ...list];
+  }
+  await AsyncStorage.setItem(KEYS.CUSTOM_WORKOUTS, JSON.stringify(updated));
+  return updated;
+};
+
+export const deleteCustomWorkout = async (id: string): Promise<CustomWorkout[]> => {
+  const list = await getCustomWorkouts();
+  const updated = list.filter((w) => w.id !== id);
+  await AsyncStorage.setItem(KEYS.CUSTOM_WORKOUTS, JSON.stringify(updated));
+  return updated;
+};
+
+export const duplicateCustomWorkout = async (id: string): Promise<CustomWorkout[]> => {
+  const list = await getCustomWorkouts();
+  const src = list.find((w) => w.id === id);
+  if (!src) return list;
+  const copy: CustomWorkout = {
+    ...src,
+    id: generateId(),
+    name: `${src.name} (copie)`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  const updated = [copy, ...list];
+  await AsyncStorage.setItem(KEYS.CUSTOM_WORKOUTS, JSON.stringify(updated));
+  return updated;
+};
+
+// Convertit une CustomWorkout en WorkoutSession lançable par LiveWorkoutScreen.
+export const customToSession = (cw: CustomWorkout): WorkoutSession => ({
+  title: cw.name,
+  focus: cw.focus,
+  type: 'Custom',
+  exercises: cw.exercises,
+});
+
+// Factory pour créer un LibraryExercise par défaut (utilisé dans le builder)
+export const defaultLibraryExercise = (overrides: Partial<LibraryExercise>): LibraryExercise => ({
+  name: '',
+  sets: 3,
+  reps: '10',
+  rest: 60,
+  ...overrides,
+});
+
 // ── Favorites (recipes) ────────────────────────────────────────────────────
 export const getFavorites = async (): Promise<Recipe[]> => {
   const data = await AsyncStorage.getItem(KEYS.FAVORITES);
@@ -234,7 +365,7 @@ export const saveFavorites = async (favorites: Recipe[]): Promise<void> => {
 export const wipeAllData = async (): Promise<void> => {
   const keys = await AsyncStorage.getAllKeys();
   const jlKeys = keys.filter((k) => k.startsWith('@jlfit_'));
-  await AsyncStorage.multiRemove(jlKeys);
+  await AsyncStorage.multiRemove([...jlKeys, KEYS.CUSTOM_WORKOUTS]);
   try {
     await SecureStore.deleteItemAsync(SECURE_KEYS.GEMINI_API_KEY);
   } catch {

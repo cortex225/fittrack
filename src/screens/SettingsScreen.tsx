@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RADIUS, SPACING } from '../theme';
 import { useApp } from '../contexts/AppContext';
-import { GoalType } from '../types';
+import { ActivityLevel, GoalType } from '../types';
 import {
   GOAL_CONFIGS,
   computeTargetsForGoal,
@@ -24,8 +24,20 @@ import {
   setApiKey,
   wipeAllData,
 } from '../utils/storage';
+import {
+  ACTIVITY_CONFIG,
+  bmiCategory,
+  computeBMI,
+  computeBMR,
+  computeTDEE,
+  idealWeightRange,
+  suggestGoal,
+  weeklyDeficitTarget,
+} from '../utils/health';
+import { hasEmbeddedApiKey } from '../services/gemini';
 
 const GOALS: GoalType[] = ['cut', 'maintain', 'bulk'];
+const ACTIVITY_LEVELS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'very_active'];
 
 export default function SettingsScreen() {
   const navigation = useNavigation<any>();
@@ -40,15 +52,28 @@ export default function SettingsScreen() {
   const [weight, setWeight] = useState(String(profile.weightKg));
   const [height, setHeight] = useState(String(profile.heightCm));
   const [age, setAge] = useState(String(profile.age));
-  const [tee, setTee] = useState(String(profile.tee));
 
   useEffect(() => {
     setName(profile.name);
     setWeight(String(profile.weightKg));
     setHeight(String(profile.heightCm));
     setAge(String(profile.age));
-    setTee(String(profile.tee));
   }, [profile]);
+
+  // Métriques en live, recalculées à chaque saisie (pas besoin de "sauvegarder").
+  const liveMetrics = useMemo(() => {
+    const w = parseFloat(weight) || profile.weightKg;
+    const h = parseFloat(height) || profile.heightCm;
+    const a = parseInt(age, 10) || profile.age;
+    const bmi = computeBMI(w, h);
+    const bmr = computeBMR({ weightKg: w, heightCm: h, age: a, sex: profile.sex });
+    const tdee = computeTDEE(bmr, profile.activityLevel);
+    const cat = bmiCategory(bmi);
+    const ideal = idealWeightRange(h);
+    const suggestion = suggestGoal({ weightKg: w, heightCm: h });
+    const deficit = weeklyDeficitTarget(profile.goal, tdee);
+    return { bmi, bmr, tdee, cat, ideal, suggestion, deficit, w, h, a };
+  }, [weight, height, age, profile.sex, profile.activityLevel, profile.goal]);
 
   useEffect(() => {
     getApiKey().then((k) => setApiKeyInput(k ?? ''));
@@ -74,7 +99,6 @@ export default function SettingsScreen() {
     const weightNum = parseFloat(weight) || profile.weightKg;
     const heightNum = parseFloat(height) || profile.heightCm;
     const ageNum = parseInt(age, 10) || profile.age;
-    const teeNum = parseInt(tee, 10) || profile.tee;
     const merged = computeTargetsForGoal(
       {
         ...profile,
@@ -82,12 +106,23 @@ export default function SettingsScreen() {
         weightKg: weightNum,
         heightCm: heightNum,
         age: ageNum,
-        tee: teeNum,
       },
       profile.goal
     );
     await updateProfile(merged);
     playFx('success');
+  };
+
+  const applySuggestedGoal = async () => {
+    const merged = computeTargetsForGoal(profile, liveMetrics.suggestion.goal);
+    await updateProfile(merged);
+    playFx('success');
+  };
+
+  const setActivityLevel = async (level: ActivityLevel) => {
+    const merged = computeTargetsForGoal({ ...profile, activityLevel: level }, profile.goal);
+    await updateProfile(merged);
+    playFx('click');
   };
 
   const reset = () => {
@@ -134,19 +169,88 @@ export default function SettingsScreen() {
             <Field label="Poids (kg)" value={weight} onChangeText={setWeight} keyboardType="numeric" style={{ flex: 1 }} />
             <Field label="Taille (cm)" value={height} onChangeText={setHeight} keyboardType="numeric" style={{ flex: 1 }} />
           </View>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Field label="Âge" value={age} onChangeText={setAge} keyboardType="numeric" style={{ flex: 1 }} />
-            <Field
-              label="TEE (kcal)"
-              value={tee}
-              onChangeText={setTee}
-              keyboardType="numeric"
-              style={{ flex: 1 }}
-              helper="Dépense totale"
-            />
-          </View>
+          <Field label="Âge" value={age} onChangeText={setAge} keyboardType="numeric" />
 
-          <Text style={styles.label}>Objectif</Text>
+          <TouchableOpacity style={styles.primaryBtn} onPress={saveProfileForm}>
+            <Text style={styles.primaryBtnText}>METTRE À JOUR LE PROFIL</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Métriques santé live */}
+        <SectionTitle>MÉTRIQUES SANTÉ</SectionTitle>
+        <View style={styles.card}>
+          <View style={styles.metricsGrid}>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricValue}>{liveMetrics.bmi.toFixed(1)}</Text>
+              <Text style={styles.metricLabel}>IMC</Text>
+              <View style={[styles.metricBadge, { backgroundColor: `${liveMetrics.cat.color}22`, borderColor: liveMetrics.cat.color }]}>
+                <Text style={[styles.metricBadgeText, { color: liveMetrics.cat.color }]}>{liveMetrics.cat.label}</Text>
+              </View>
+            </View>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricValue}>{liveMetrics.bmr}</Text>
+              <Text style={styles.metricLabel}>BMR kcal</Text>
+              <Text style={styles.metricHint}>Repos</Text>
+            </View>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricValue}>{liveMetrics.tdee}</Text>
+              <Text style={styles.metricLabel}>TDEE kcal</Text>
+              <Text style={styles.metricHint}>Total</Text>
+            </View>
+          </View>
+          <View style={styles.idealRow}>
+            <Ionicons name="fitness-outline" size={14} color={COLORS.textMuted} />
+            <Text style={styles.idealText}>
+              Poids sain : {liveMetrics.ideal.min}–{liveMetrics.ideal.max} kg · cible IMC 22 : {liveMetrics.ideal.target} kg
+            </Text>
+          </View>
+        </View>
+
+        {/* Niveau d'activité */}
+        <SectionTitle>NIVEAU D'ACTIVITÉ</SectionTitle>
+        <View style={styles.card}>
+          {ACTIVITY_LEVELS.map((lvl) => {
+            const cfg = ACTIVITY_CONFIG[lvl];
+            const active = profile.activityLevel === lvl;
+            return (
+              <TouchableOpacity
+                key={lvl}
+                style={[styles.activityRow, active && styles.activityRowActive]}
+                onPress={() => setActivityLevel(lvl)}
+              >
+                <View style={[styles.activityDot, active && { backgroundColor: COLORS.primary }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.activityLabel, active && { color: COLORS.text }]}>{cfg.label}</Text>
+                  <Text style={styles.activitySub}>{cfg.description}</Text>
+                </View>
+                <Text style={styles.activityFactor}>×{cfg.factor}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Suggestion IA */}
+        {liveMetrics.suggestion.goal !== profile.goal && (
+          <>
+            <SectionTitle>SUGGESTION INTELLIGENTE</SectionTitle>
+            <View style={[styles.card, styles.suggestionCard]}>
+              <View style={styles.suggestionHeader}>
+                <Ionicons name="sparkles" size={18} color={COLORS.primary} />
+                <Text style={styles.suggestionTitle}>
+                  Objectif recommandé : {GOAL_CONFIGS[liveMetrics.suggestion.goal].label}
+                </Text>
+              </View>
+              <Text style={styles.suggestionReason}>{liveMetrics.suggestion.reason}</Text>
+              <TouchableOpacity style={styles.primaryBtn} onPress={applySuggestedGoal}>
+                <Text style={styles.primaryBtnText}>APPLIQUER CETTE SUGGESTION</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+
+        {/* Objectif */}
+        <SectionTitle>OBJECTIF</SectionTitle>
+        <View style={styles.card}>
           <View style={styles.goalRow}>
             {GOALS.map((g) => {
               const cfg = GOAL_CONFIGS[g];
@@ -167,9 +271,20 @@ export default function SettingsScreen() {
             })}
           </View>
 
-          <TouchableOpacity style={styles.primaryBtn} onPress={saveProfileForm}>
-            <Text style={styles.primaryBtnText}>METTRE À JOUR LE PROFIL</Text>
-          </TouchableOpacity>
+          {profile.goal !== 'maintain' && (
+            <View style={styles.deficitRow}>
+              <Ionicons
+                name={profile.goal === 'cut' ? 'trending-down-outline' : 'trending-up-outline'}
+                size={14}
+                color={COLORS.textMuted}
+              />
+              <Text style={styles.deficitText}>
+                {liveMetrics.deficit.kcalDelta > 0 ? '+' : ''}
+                {liveMetrics.deficit.kcalDelta} kcal/j · ~{Math.abs(liveMetrics.deficit.kgPerWeek).toFixed(2)} kg/sem
+                {profile.goal === 'cut' ? ' perdus' : ' pris'}
+              </Text>
+            </View>
+          )}
 
           <View style={styles.macroSummary}>
             <Text style={styles.macroSumLabel}>Cibles auto-calculées</Text>
@@ -180,39 +295,56 @@ export default function SettingsScreen() {
         </View>
 
         {/* API */}
-        <SectionTitle>CLÉ API GEMINI</SectionTitle>
-        <View style={styles.card}>
-          <Text style={styles.helper}>
-            Active le Coach IA, le scan photo de repas et le générateur de recettes. La clé est stockée chiffrée sur l'appareil.
-          </Text>
-          <View style={styles.keyRow}>
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              value={apiKeyInput}
-              onChangeText={setApiKeyInput}
-              placeholder="AIza..."
-              placeholderTextColor={COLORS.textMuted}
-              secureTextEntry={!showKey}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowKey((s) => !s)}>
-              <Ionicons name={showKey ? 'eye-off-outline' : 'eye-outline'} size={20} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity style={styles.primaryBtn} onPress={saveKey} disabled={savingKey}>
-            <Text style={styles.primaryBtnText}>
-              {settings.hasApiKey ? 'METTRE À JOUR LA CLÉ' : 'ENREGISTRER LA CLÉ'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.linkBtn}
-            onPress={() => Linking.openURL('https://aistudio.google.com/app/apikey')}
-          >
-            <Ionicons name="open-outline" size={14} color={COLORS.primary} />
-            <Text style={styles.linkText}>Obtenir une clé sur Google AI Studio</Text>
-          </TouchableOpacity>
-        </View>
+        {hasEmbeddedApiKey() ? (
+          <>
+            <SectionTitle>IA</SectionTitle>
+            <View style={styles.card}>
+              <View style={styles.embeddedKeyRow}>
+                <Ionicons name="sparkles" size={18} color={COLORS.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.embeddedKeyTitle}>Coach IA, scan repas et chef IA actifs</Text>
+                  <Text style={styles.embeddedKeySub}>Propulsé par Gemini · clé fournie par l'app</Text>
+                </View>
+              </View>
+            </View>
+          </>
+        ) : (
+          <>
+            <SectionTitle>CLÉ API GEMINI</SectionTitle>
+            <View style={styles.card}>
+              <Text style={styles.helper}>
+                Active le Coach IA, le scan photo de repas et le générateur de recettes. La clé est stockée chiffrée sur l'appareil.
+              </Text>
+              <View style={styles.keyRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  value={apiKeyInput}
+                  onChangeText={setApiKeyInput}
+                  placeholder="AIza..."
+                  placeholderTextColor={COLORS.textMuted}
+                  secureTextEntry={!showKey}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowKey((s) => !s)}>
+                  <Ionicons name={showKey ? 'eye-off-outline' : 'eye-outline'} size={20} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity style={styles.primaryBtn} onPress={saveKey} disabled={savingKey}>
+                <Text style={styles.primaryBtnText}>
+                  {settings.hasApiKey ? 'METTRE À JOUR LA CLÉ' : 'ENREGISTRER LA CLÉ'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.linkBtn}
+                onPress={() => Linking.openURL('https://aistudio.google.com/app/apikey')}
+              >
+                <Ionicons name="open-outline" size={14} color={COLORS.primary} />
+                <Text style={styles.linkText}>Obtenir une clé sur Google AI Studio</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
 
         {/* Preferences */}
         <SectionTitle>PRÉFÉRENCES</SectionTitle>
@@ -396,6 +528,82 @@ const styles = StyleSheet.create({
   },
   linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.sm, justifyContent: 'center' },
   linkText: { color: COLORS.primary, fontSize: 12, fontWeight: '700' },
+
+  embeddedKeyRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  embeddedKeyTitle: { color: COLORS.text, fontWeight: '800', fontSize: 13 },
+  embeddedKeySub: { color: COLORS.textMuted, fontSize: 11, marginTop: 2 },
+
+  // Métriques santé
+  metricsGrid: { flexDirection: 'row', gap: SPACING.sm },
+  metricItem: {
+    flex: 1,
+    alignItems: 'center',
+    padding: SPACING.sm,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 4,
+  },
+  metricValue: { color: COLORS.text, fontSize: 22, fontWeight: '900' },
+  metricLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  metricHint: { color: COLORS.textMuted, fontSize: 9 },
+  metricBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  metricBadgeText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  idealRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+  },
+  idealText: { color: COLORS.textSecondary, fontSize: 11, flex: 1 },
+
+  // Activité
+  activityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: RADIUS.md,
+  },
+  activityRowActive: { backgroundColor: `${COLORS.primary}11` },
+  activityDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.border,
+  },
+  activityLabel: { color: COLORS.textSecondary, fontWeight: '800', fontSize: 13 },
+  activitySub: { color: COLORS.textMuted, fontSize: 11, marginTop: 1 },
+  activityFactor: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700' },
+
+  // Suggestion
+  suggestionCard: { borderColor: COLORS.primary, borderWidth: 1 },
+  suggestionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.sm },
+  suggestionTitle: { color: COLORS.text, fontWeight: '900', fontSize: 13 },
+  suggestionReason: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 16 },
+
+  // Déficit
+  deficitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+  },
+  deficitText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
 
   switchRow: {
     flexDirection: 'row',
