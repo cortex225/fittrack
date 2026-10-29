@@ -428,7 +428,7 @@ export default function DashboardScreen() {
           >
             <LinearGradient
               colors={[`${COLORS.primary}10`, 'transparent']}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               start={{ x: 0, y: 0 }}
               end={{ x: 0, y: 1 }}
             />
@@ -465,7 +465,7 @@ export default function DashboardScreen() {
             <View style={[styles.smallTile, { overflow: 'hidden' }]}>
               <LinearGradient
                 colors={[`${COLORS.accent}25`, 'transparent']}
-                style={StyleSheet.absoluteFillObject}
+                style={StyleSheet.absoluteFill}
               />
               <View style={styles.smallHead}>
                 <Ionicons name="flame" size={14} color={COLORS.accent} />
@@ -478,7 +478,7 @@ export default function DashboardScreen() {
             <View style={[styles.smallTile, { overflow: 'hidden' }]}>
               <LinearGradient
                 colors={[`${COLORS.primary}20`, 'transparent']}
-                style={StyleSheet.absoluteFillObject}
+                style={StyleSheet.absoluteFill}
               />
               <View style={styles.smallHead}>
                 <Ionicons name="barbell-outline" size={14} color={COLORS.primary} />
@@ -502,7 +502,7 @@ export default function DashboardScreen() {
           >
             <LinearGradient
               colors={[`${COLORS.blue}20`, 'transparent']}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
             />
             <View style={styles.smallHead}>
               <Ionicons name="fitness-outline" size={14} color={COLORS.blue} />
@@ -537,7 +537,7 @@ export default function DashboardScreen() {
           >
             <LinearGradient
               colors={[`${COLORS.purple}20`, 'transparent']}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
             />
             <View style={styles.smallHead}>
               <Ionicons name="body-outline" size={14} color={COLORS.purple} />
@@ -597,7 +597,7 @@ export default function DashboardScreen() {
         >
           <LinearGradient
             colors={[`${COLORS.purple}18`, 'transparent']}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
           />
