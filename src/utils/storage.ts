@@ -5,6 +5,8 @@ import {
   CustomWorkout,
   Gamification,
   GoalType,
+  GroceryBudget,
+  GroceryTrip,
   HouseholdMember,
   LibraryExercise,
   WeekPlan,
@@ -35,6 +37,7 @@ const KEYS = {
   SHOPPING: '@jlfit_shopping',
   HOUSEHOLD: '@jlfit_household',
   WEEK_PLAN: '@jlfit_week_plan',
+  GROCERY_BUDGET: '@jlfit_grocery_budget',
   DISH_HISTORY: '@jlfit_dish_history',
 };
 
@@ -529,6 +532,33 @@ export const clearCheckedShoppingItems = async (): Promise<ShoppingItem[]> => {
   const next = list.filter((it) => !it.checked);
   await persistShoppingList(next);
   return next;
+};
+
+// Remplace les articles générés depuis le menu, garde ceux ajoutés à la main
+// ou depuis une recette.
+export const replacePlanShoppingItems = async (planItems: ShoppingItem[]): Promise<ShoppingItem[]> => {
+  const kept = (await getShoppingList()).filter((it) => !it.fromPlan);
+  const keptKeys = new Set(kept.map((it) => it.normalized));
+  const next = [...planItems.filter((it) => !keptKeys.has(it.normalized)), ...kept];
+  await persistShoppingList(next);
+  return next;
+};
+
+// ── Budget épicerie ────────────────────────────────────────────────────────
+export const getGroceryBudget = async (): Promise<GroceryBudget> => {
+  const data = await AsyncStorage.getItem(KEYS.GROCERY_BUDGET);
+  return data ? JSON.parse(data) : { weekly: null, trips: [] };
+};
+
+export const saveGroceryBudget = async (patch: Partial<GroceryBudget>): Promise<GroceryBudget> => {
+  const next = { ...(await getGroceryBudget()), ...patch };
+  await AsyncStorage.setItem(KEYS.GROCERY_BUDGET, JSON.stringify(next));
+  return next;
+};
+
+export const addGroceryTrip = async (trip: Omit<GroceryTrip, 'id'>): Promise<GroceryBudget> => {
+  const current = await getGroceryBudget();
+  return saveGroceryBudget({ trips: [{ ...trip, id: generateId() }, ...current.trips].slice(0, 52) });
 };
 
 export const clearShoppingList = async (): Promise<ShoppingItem[]> => {

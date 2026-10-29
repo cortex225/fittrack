@@ -34,9 +34,11 @@ import {
   getDishHistory,
   getTodayNutrition,
   getWeekPlan,
+  replacePlanShoppingItems,
   saveNutritionLog,
   saveWeekPlan,
 } from '../utils/storage';
+import { groceryToShoppingItems } from '../utils/grocery';
 import { describeStrictExclusions } from '../utils/allergens';
 import { AnimatedNumber, Card, Chip, PressableScale, SectionLabel, Segmented } from '../components/ui';
 
@@ -76,6 +78,7 @@ export default function MealPlanScreen() {
   const [dinerIds, setDinerIds] = useState<string[] | null>(null);
   const [dinnerCount, setDinnerCount] = useState<'5' | '7'>('7');
   const [ivorian, setIvorian] = useState<IvorianShare>('half');
+  const [groceryWeeks, setGroceryWeeks] = useState<'1' | '2' | '3'>('2');
 
   const activeIds = dinerIds ?? members.map((m) => m.id);
   const diners = members.filter((m) => activeIds.includes(m.id));
@@ -171,6 +174,13 @@ export default function MealPlanScreen() {
     playFx('success');
     addXp(25);
     Alert.alert('Ajouté', `${meal.name} est dans ton journal du jour.`);
+  };
+
+  const buildGroceries = async () => {
+    if (!plan) return;
+    await replacePlanShoppingItems(groceryToShoppingItems(plan, Number(groceryWeeks), generateId));
+    playFx('success');
+    navigation.navigate('ShoppingList');
   };
 
   const dayMeals = useMemo(() => {
@@ -300,6 +310,26 @@ export default function MealPlanScreen() {
                 <Text style={styles.freeText}>Souper libre ce soir</Text>
               </View>
             )}
+
+            <Card style={{ marginTop: SPACING.xl }}>
+              <Text style={styles.groceryTitle}>Liste d'épicerie</Text>
+              <Text style={styles.helper}>Quantités pour vous deux, calculées depuis vos portions.</Text>
+              <View style={{ marginTop: SPACING.md }}>
+                <Segmented
+                  options={[
+                    { value: '1', label: '1 semaine' },
+                    { value: '2', label: '2 semaines' },
+                    { value: '3', label: '3 semaines' },
+                  ]}
+                  value={groceryWeeks}
+                  onChange={setGroceryWeeks}
+                />
+              </View>
+              <PressableScale onPress={buildGroceries} style={styles.primaryBtn}>
+                <Ionicons name="cart" size={18} color="#08110D" />
+                <Text style={styles.primaryText}>Faire ma liste</Text>
+              </PressableScale>
+            </Card>
 
             {plan.blockedCount > 0 && (
               <View style={[styles.safety, { marginTop: SPACING.lg }]}>
@@ -537,6 +567,7 @@ const styles = StyleSheet.create({
   actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, borderRadius: RADIUS.lg, backgroundColor: COLORS.cardElevated },
   actionPrimary: { backgroundColor: COLORS.primary },
   actionText: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  groceryTitle: { ...TYPE.headline, color: COLORS.text },
   freeNight: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: SPACING.md, padding: SPACING.lg, borderRadius: RADIUS.xl, borderWidth: 1, borderStyle: 'dashed', borderColor: COLORS.border },
   freeText: { ...TYPE.body, color: COLORS.textMuted },
   pulse: { width: 64, height: 64, borderRadius: 32, backgroundColor: COLORS.primarySoft, alignItems: 'center', justifyContent: 'center' },

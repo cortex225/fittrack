@@ -109,6 +109,24 @@ export interface ShoppingItem {
   checked: boolean;
   recipes: string[];  // noms des recettes qui ont contribué cet ingrédient
   addedAt: string;    // ISO
+  quantity?: string;  // ex. "1,4 kg" (liste générée depuis le menu)
+  category?: GroceryCategory;
+  fromPlan?: boolean; // remplacé à chaque nouvelle génération depuis le menu
+  note?: string;
+}
+
+export type GroceryCategory = 'protein' | 'starch' | 'veg' | 'sauce' | 'pantry' | 'other';
+
+export interface GroceryTrip {
+  id: string;
+  date: string;      // YYYY-MM-DD
+  amount: number;    // total payé, saisi par l'utilisateur
+  weeks: number;     // nombre de semaines couvertes par cette épicerie
+}
+
+export interface GroceryBudget {
+  weekly: number | null; // budget épicerie par semaine, saisi par l'utilisateur
+  trips: GroceryTrip[];
 }
 
 // ── Body metrics ───────────────────────────────────────────────────────────
