@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RADIUS, SPACING } from '../theme';
@@ -40,6 +40,7 @@ const PERIOD_LABELS: Record<Period, { label: string; days: number | null }> = {
 
 export default function StatsScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const { gamification, currentLevel, nextLevel, xpProgress, playFx } = useApp();
 
   const [weightInput, setWeightInput] = useState('');
@@ -257,6 +258,17 @@ export default function StatsScreen() {
           )}
         </View>
 
+        <TouchableOpacity style={styles.checkInCard} onPress={() => navigation.navigate('CheckIn')} activeOpacity={0.9}>
+          <View style={styles.checkInIcon}>
+            <Ionicons name="body-outline" size={20} color={COLORS.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.checkInTitle}>Bilan des 2 semaines</Text>
+            <Text style={styles.checkInSub}>Poids, mensurations et calories ajustées</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+        </TouchableOpacity>
+
         {/* Weight */}
         <Text style={styles.sectionTitle}>POIDS</Text>
         <View style={styles.card}>
@@ -361,6 +373,21 @@ const Meta: React.FC<{ icon: any; text: string }> = ({ icon, text }) => (
 );
 
 const styles = StyleSheet.create({
+  checkInCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    padding: SPACING.md,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.primarySoft,
+    marginBottom: SPACING.md,
+  },
+  checkInIcon: { width: 40, height: 40, borderRadius: RADIUS.lg, backgroundColor: COLORS.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  checkInTitle: { color: COLORS.text, fontSize: 15, fontWeight: '800' },
+  checkInSub: { color: COLORS.textMuted, fontSize: 12, marginTop: 2 },
+
   root: { flex: 1, backgroundColor: COLORS.background },
   header: {
     flexDirection: 'row',

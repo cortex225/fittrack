@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import {
   AppSettings,
+  CheckIn,
   CustomWorkout,
   Gamification,
   GoalType,
@@ -40,6 +41,7 @@ const KEYS = {
   WEEK_PLAN: '@jlfit_week_plan',
   GROCERY_BUDGET: '@jlfit_grocery_budget',
   PROGRAM_DAYS: '@jlfit_program_days',
+  CHECK_INS: '@jlfit_check_ins',
   DISH_HISTORY: '@jlfit_dish_history',
 };
 
@@ -221,7 +223,8 @@ export const computeTargetsForGoal = (profile: UserProfile, goal: GoalType): Use
   const bmr = computeBMR(profile);
   const tee = computeTDEE(bmr, profile.activityLevel);
   const calorieOffset = computeSafeCalorieOffset(tee, goal);
-  const targetCalories = Math.round(tee + calorieOffset);
+  // Ajustement décidé au bilan, sans jamais descendre sous le métabolisme de base.
+  const targetCalories = Math.max(bmr, Math.round(tee + calorieOffset + (profile.calorieAdjustment ?? 0)));
   // Protéines : 2.0 g/kg en sèche, 1.8 g/kg ailleurs (préserve la masse maigre en déficit).
   // Lipides : 0.9 g/kg.
   // Au-delà d'un IMC de 25, protéines et lipides se calculent sur le poids
@@ -300,6 +303,22 @@ export const getProgramDays = async (): Promise<ProgramDays> => {
 
 export const saveProgramDays = async (days: ProgramDays): Promise<void> => {
   await AsyncStorage.setItem(KEYS.PROGRAM_DAYS, JSON.stringify(days));
+};
+
+// ── Bilans ─────────────────────────────────────────────────────────────────
+export const getCheckIns = async (memberId?: string): Promise<CheckIn[]> => {
+  const data = await AsyncStorage.getItem(KEYS.CHECK_INS);
+  const all: CheckIn[] = data ? JSON.parse(data) : [];
+  const list = memberId ? all.filter((c) => c.memberId === memberId) : all;
+  return list.sort((a, b) => b.date.localeCompare(a.date));
+};
+
+export const saveCheckIn = async (checkIn: CheckIn): Promise<CheckIn[]> => {
+  const data = await AsyncStorage.getItem(KEYS.CHECK_INS);
+  const all: CheckIn[] = data ? JSON.parse(data) : [];
+  const next = [checkIn, ...all.filter((c) => c.id !== checkIn.id)];
+  await AsyncStorage.setItem(KEYS.CHECK_INS, JSON.stringify(next));
+  return next.filter((c) => c.memberId === checkIn.memberId).sort((a, b) => b.date.localeCompare(a.date));
 };
 
 // ── Menus de la semaine ────────────────────────────────────────────────────

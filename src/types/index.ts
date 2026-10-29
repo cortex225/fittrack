@@ -157,6 +157,8 @@ export interface UserProfile {
   strictExclusions?: string[];
   dislikes?: string[];
   cuisines?: string[];
+  // Ajustement des calories décidé au bilan (ex. +200 si le poids stagne).
+  calorieAdjustment?: number;
 }
 
 // ── Foyer ──────────────────────────────────────────────────────────────────
@@ -261,4 +263,26 @@ export interface WeekPlan {
   dinerIds: string[];
   meals: PlannedMeal[];
   blockedCount: number;  // plats écartés par les exclusions strictes
+}
+
+// ── Bilans (poids et mensurations toutes les 2 semaines) ───────────────────
+export type MeasureKey =
+  | 'neck'
+  | 'shoulders'
+  | 'chest'
+  | 'arm'
+  | 'forearm'
+  | 'waist'
+  | 'hips'
+  | 'glutes'
+  | 'thigh'
+  | 'calf';
+
+export interface CheckIn {
+  id: string;
+  memberId: string;
+  date: string;     // YYYY-MM-DD
+  weightKg: number;
+  measures: Partial<Record<MeasureKey, number>>; // cm
+  appliedAdjustment?: number; // kcal appliquées après ce bilan
 }

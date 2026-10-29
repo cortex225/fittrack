@@ -22,6 +22,7 @@ import WorkoutBuilderScreen from './src/screens/WorkoutBuilderScreen';
 import ShoppingListScreen from './src/screens/ShoppingListScreen';
 import HouseholdScreen from './src/screens/HouseholdScreen';
 import MealPlanScreen from './src/screens/MealPlanScreen';
+import CheckInScreen from './src/screens/CheckInScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -122,6 +123,11 @@ function RootShell() {
             name="WorkoutBuilder"
             component={WorkoutBuilderScreen}
             options={{ animation: 'slide_from_bottom', presentation: 'fullScreenModal' }}
+          />
+          <Stack.Screen
+            name="CheckIn"
+            component={CheckInScreen}
+            options={{ animation: 'slide_from_right' }}
           />
           <Stack.Screen
             name="MealPlan"

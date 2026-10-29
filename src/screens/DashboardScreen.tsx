@@ -26,9 +26,12 @@ import {
   getWeightHistory,
   getWorkouts,
   getProgramDays,
+  getCheckIns,
+  OWNER_ID,
   saveNutritionLog,
 } from '../utils/storage';
 import { DEFAULT_PROGRAM_DAYS, ProgramDays, sessionForDay } from '../data/programs';
+import { nextCheckInIn } from '../utils/checkin';
 import { NutritionLog, WeightEntry, Workout } from '../types';
 import { MissingApiKeyError, getCoachAdvice } from '../services/gemini';
 import { findExerciseById } from '../services/exercises';
@@ -204,6 +207,7 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const [programDays, setProgramDays] = useState<ProgramDays>(DEFAULT_PROGRAM_DAYS);
+  const [checkInDue, setCheckInDue] = useState(false);
   const session = sessionForDay(date.getDay(), programDays);
   const dayInfo = session
     ? { title: session.title, type: 'Musculation' }
@@ -212,14 +216,16 @@ export default function DashboardScreen() {
   const isRest = baseExercises.length === 0;
 
   const loadAll = useCallback(async () => {
-    const [log, w, wt, k7, pd] = await Promise.all([
+    const [log, w, wt, k7, pd, checkIns] = await Promise.all([
       getNutritionLog(formatDateKey(date)),
       getWorkouts(),
       getWeightHistory(),
       getNutritionKcalRange(7),
       getProgramDays(),
+      getCheckIns(OWNER_ID),
     ]);
     setProgramDays(pd);
+    setCheckInDue(nextCheckInIn(checkIns[0], formatDateKey(new Date())) === 0);
     setNutrition(log);
     setWorkouts(w);
     setWeights(wt);
@@ -499,6 +505,19 @@ export default function DashboardScreen() {
           </View>
         </View>
 
+        {checkInDue && (
+          <TouchableOpacity style={styles.checkInCard} onPress={() => navigation.navigate('CheckIn')} activeOpacity={0.9}>
+          <View style={styles.checkInIcon}>
+            <Ionicons name="body-outline" size={20} color={COLORS.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.checkInTitle}>Bilan des 2 semaines</Text>
+            <Text style={styles.checkInSub}>C'est le moment : poids, mensurations et calories</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+        </TouchableOpacity>
+        )}
+
         {/* ─── E/F · Workout + Poids ──────────────────────────────────────── */}
         <View style={styles.rowEqual}>
           {/* E · Workout card avec GIF preview */}
@@ -637,6 +656,21 @@ const MacroPill: React.FC<{ color: string; label: string; value: number; target:
 );
 
 const styles = StyleSheet.create({
+  checkInCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    padding: SPACING.md,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.primarySoft,
+    marginBottom: SPACING.md,
+  },
+  checkInIcon: { width: 40, height: 40, borderRadius: RADIUS.lg, backgroundColor: COLORS.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  checkInTitle: { color: COLORS.text, fontSize: 15, fontWeight: '800' },
+  checkInSub: { color: COLORS.textMuted, fontSize: 12, marginTop: 2 },
+
   root: { flex: 1, backgroundColor: COLORS.background },
 
   // Header
