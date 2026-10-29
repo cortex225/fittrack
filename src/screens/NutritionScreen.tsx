@@ -390,6 +390,17 @@ export default function NutritionScreen() {
         contentContainerStyle={{ padding: SPACING.md, paddingBottom: insets.bottom + 110 }}
         showsVerticalScrollIndicator={false}
       >
+        <TouchableOpacity style={styles.weekCard} onPress={() => navigation.navigate('MealPlan')} activeOpacity={0.9}>
+          <View style={styles.weekIcon}>
+            <Ionicons name="calendar" size={20} color={COLORS.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.weekTitle}>{members.length > 1 ? 'Ta semaine à deux' : 'Ta semaine'}</Text>
+            <Text style={styles.weekSub}>Menus, plats ivoiriens et portions pour chacun</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+        </TouchableOpacity>
+
         <View style={styles.actionGrid}>
           <ActionTile icon="camera-outline" label="PHOTO" sub="Scan IA" color={COLORS.primary} onPress={pickFromCamera} disabled={scanning} />
           <ActionTile icon="image-outline" label="GALERIE" sub="Scan IA" color={COLORS.blue} onPress={pickFromGallery} disabled={scanning} />
@@ -910,6 +921,27 @@ const TextField: React.FC<{
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
+  weekCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    padding: SPACING.md,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.primarySoft,
+    marginBottom: SPACING.md,
+  },
+  weekIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekTitle: { color: COLORS.text, fontSize: 16, fontWeight: '800' },
+  weekSub: { color: COLORS.textMuted, fontSize: 12, marginTop: 2 },
   safetyNote: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -44,7 +44,7 @@ Cibles quotidiennes: ${profile.targetCalories} kcal · ${profile.targetProtein}g
 }
 
 // Models — primary + fallback (used on 503 UNAVAILABLE)
-const TEXT_MODEL = 'gemini-2.5-flash';
+export const TEXT_MODEL = 'gemini-2.5-flash';
 const VISION_MODEL = 'gemini-2.5-flash';
 const FALLBACK_MODEL = 'gemini-2.5-flash-lite';
 
@@ -61,7 +61,7 @@ export class MissingApiKeyError extends Error {
 
 export const hasEmbeddedApiKey = (): boolean => EMBEDDED_API_KEY.length > 0;
 
-async function getClient(): Promise<GoogleGenAI> {
+export async function getClient(): Promise<GoogleGenAI> {
   const key = EMBEDDED_API_KEY || (await getApiKey());
   if (!key) throw new MissingApiKeyError();
   return new GoogleGenAI({ apiKey: key });
@@ -70,7 +70,7 @@ async function getClient(): Promise<GoogleGenAI> {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Retry on 503/429 with exponential backoff; on final failure try the fallback model once.
-async function callWithRetry<T>(
+export async function callWithRetry<T>(
   fn: (model: string) => Promise<T>,
   primaryModel: string
 ): Promise<T> {

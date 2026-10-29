@@ -7,6 +7,7 @@ import {
   GoalType,
   HouseholdMember,
   LibraryExercise,
+  WeekPlan,
   NutritionLog,
   Recipe,
   ShoppingItem,
@@ -33,6 +34,8 @@ const KEYS = {
   CUSTOM_WORKOUTS: '@jlfit_custom_workouts',
   SHOPPING: '@jlfit_shopping',
   HOUSEHOLD: '@jlfit_household',
+  WEEK_PLAN: '@jlfit_week_plan',
+  DISH_HISTORY: '@jlfit_dish_history',
 };
 
 const SECURE_KEYS = {
@@ -216,9 +219,14 @@ export const computeTargetsForGoal = (profile: UserProfile, goal: GoalType): Use
   const targetCalories = Math.round(tee + calorieOffset);
   // Protéines : 2.0 g/kg en sèche, 1.8 g/kg ailleurs (préserve la masse maigre en déficit).
   // Lipides : 0.9 g/kg.
+  // Au-delà d'un IMC de 25, protéines et lipides se calculent sur le poids
+  // correspondant à un IMC de 25 : sinon les cibles grimpent sans raison
+  // (ex. 184 g de protéines pour 92 kg en perte de poids).
+  const m = profile.heightCm / 100;
+  const refWeight = Math.min(profile.weightKg, Math.round(25 * m * m));
   const proteinPerKg = goal === 'cut' ? 2.0 : 1.8;
-  const targetProtein = Math.round(profile.weightKg * proteinPerKg);
-  const targetFats = Math.round(profile.weightKg * 0.9);
+  const targetProtein = Math.round(refWeight * proteinPerKg);
+  const targetFats = Math.round(refWeight * 0.9);
   const kcalFromProtFat = targetProtein * 4 + targetFats * 9;
   const targetCarbs = Math.max(0, Math.round((targetCalories - kcalFromProtFat) / 4));
   // Hydratation : 35 ml/kg, plancher 2 L.
@@ -277,6 +285,26 @@ export const deleteHouseholdMember = async (id: string): Promise<HouseholdMember
   const next = (await getHousehold()).filter((m) => m.id !== id);
   await AsyncStorage.setItem(KEYS.HOUSEHOLD, JSON.stringify(next));
   return next;
+};
+
+// ── Menus de la semaine ────────────────────────────────────────────────────
+export const getWeekPlan = async (): Promise<WeekPlan | null> => {
+  const data = await AsyncStorage.getItem(KEYS.WEEK_PLAN);
+  return data ? JSON.parse(data) : null;
+};
+
+export const saveWeekPlan = async (plan: WeekPlan): Promise<void> => {
+  await AsyncStorage.setItem(KEYS.WEEK_PLAN, JSON.stringify(plan));
+  // Historique des plats pour varier d'une semaine à l'autre.
+  const history = await getDishHistory();
+  const names = plan.meals.map((m) => m.name);
+  const next = [...names, ...history.filter((n) => !names.includes(n))].slice(0, 40);
+  await AsyncStorage.setItem(KEYS.DISH_HISTORY, JSON.stringify(next));
+};
+
+export const getDishHistory = async (): Promise<string[]> => {
+  const data = await AsyncStorage.getItem(KEYS.DISH_HISTORY);
+  return data ? JSON.parse(data) : [];
 };
 
 // Conservé pour compat avec les écrans existants qui affichent les couleurs/labels.

@@ -183,3 +183,63 @@ export interface AppSettings {
   hapticsEnabled: boolean;
   hasApiKey: boolean; // mirror only — key stored in SecureStore
 }
+
+// ── Menus de la semaine (mode foyer) ───────────────────────────────────────
+// Un plat commun est décrit par ses composants pour UNE portion standard.
+// Les portions de chaque personne sont ensuite calculées dans le code
+// (utils/portions.ts) : on ne demande pas à l'IA de faire l'arithmétique.
+export type ComponentRole = 'protein' | 'starch' | 'veg' | 'sauce';
+
+export interface MealComponent {
+  name: string;      // ex. "Attiéké", "Poisson braisé (tilapia)"
+  role: ComponentRole;
+  grams: number;     // portion standard, cru ou tel qu'acheté
+  calories: number;  // pour ces grammes
+  protein: number;
+  carbs: number;
+  fats: number;
+}
+
+export interface PortionLine {
+  name: string;
+  grams: number;
+}
+
+export interface MemberPortion {
+  memberId: string;
+  memberName: string;
+  lines: PortionLine[];
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+}
+
+export type PlanSlot = 'lunch' | 'dinner';
+
+export interface PlannedMeal {
+  id: string;
+  slot: PlanSlot;
+  days: number[];        // 0 = lundi … 6 = dimanche
+  name: string;
+  desc: string;
+  cuisine: string;       // ex. "Ivoirienne"
+  prepTime: string;
+  costLevel: 1 | 2 | 3;  // $, $$, $$$ (indicatif, pas un prix)
+  components: MealComponent[];
+  extras: string[];      // assaisonnements et petits ingrédients
+  instructions: string[];
+  imageKeyword: string;
+  image?: string;
+  imageCredit?: { author: string; url: string; source: 'Pexels' };
+  portions: MemberPortion[];
+}
+
+export interface WeekPlan {
+  id: string;
+  weekStart: string;     // YYYY-MM-DD (lundi)
+  createdAt: string;
+  dinerIds: string[];
+  meals: PlannedMeal[];
+  blockedCount: number;  // plats écartés par les exclusions strictes
+}

@@ -1,5 +1,5 @@
 // Génération d'images via Cloudflare Workers AI (FLUX-1-schnell).
-// 10 000 requêtes/jour gratuites par compte Cloudflare.
+// Gratuit jusqu'à 10 000 neurones/jour (≈170 images 1024x1024 en 4 étapes).
 // Doc: https://developers.cloudflare.com/workers-ai/models/flux-1-schnell/
 
 const CF_ACCOUNT_ID = process.env.EXPO_PUBLIC_CLOUDFLARE_ACCOUNT_ID ?? '';
@@ -63,6 +63,42 @@ export async function generateRecipeImage(
       `[Cloudflare] generateRecipeImage failed for "${recipeName}":`,
       err?.message ?? err
     );
+    return null;
+  }
+}
+
+// ── Vraies photos de plats (Pexels) ────────────────────────────────────────
+// Gratuit : 200 requêtes/heure, 20 000/mois par défaut. Pexels demande un lien
+// visible vers Pexels et de créditer le photographe quand c'est possible.
+// Doc : https://www.pexels.com/api/documentation/
+const PEXELS_API_KEY = process.env.EXPO_PUBLIC_PEXELS_API_KEY ?? '';
+
+export const hasPexelsKey = (): boolean => PEXELS_API_KEY.length > 0;
+
+export interface FoodPhoto {
+  uri: string;
+  author: string;
+  url: string; // page de la photo sur Pexels
+}
+
+export async function findFoodPhoto(query: string): Promise<FoodPhoto | null> {
+  if (!hasPexelsKey() || !query.trim()) return null;
+  const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1&orientation=landscape`;
+  try {
+    const res = await fetch(url, { headers: { Authorization: PEXELS_API_KEY } });
+    if (!res.ok) {
+      console.warn(`[Pexels] HTTP ${res.status} pour "${query}"`);
+      return null;
+    }
+    const json = (await res.json()) as {
+      photos?: { url: string; photographer: string; src: { large?: string; medium?: string } }[];
+    };
+    const p = json.photos?.[0];
+    const uri = p?.src.large ?? p?.src.medium;
+    if (!p || !uri) return null;
+    return { uri, author: p.photographer, url: p.url };
+  } catch (err: any) {
+    console.warn(`[Pexels] échec pour "${query}":`, err?.message ?? err);
     return null;
   }
 }
