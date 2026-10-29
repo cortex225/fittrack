@@ -5,6 +5,7 @@ import {
   CustomWorkout,
   Gamification,
   GoalType,
+  HouseholdMember,
   LibraryExercise,
   NutritionLog,
   Recipe,
@@ -31,6 +32,7 @@ const KEYS = {
   FAVORITES: '@jlfit_favorites',
   CUSTOM_WORKOUTS: '@jlfit_custom_workouts',
   SHOPPING: '@jlfit_shopping',
+  HOUSEHOLD: '@jlfit_household',
 };
 
 const SECURE_KEYS = {
@@ -186,6 +188,10 @@ const DEFAULT_PROFILE: UserProfile = {
   targetCarbs: 280,
   targetFats: 80,
   targetWater: 2500,
+  allergens: [],
+  strictExclusions: [],
+  dislikes: [],
+  cuisines: [],
 };
 
 export const getProfile = async (): Promise<UserProfile> => {
@@ -227,6 +233,50 @@ export const computeTargetsForGoal = (profile: UserProfile, goal: GoalType): Use
     targetFats,
     targetWater,
   };
+};
+
+// ── Foyer ──────────────────────────────────────────────────────────────────
+// Le propriétaire de l'app est le profil principal ; on ne stocke ici que les
+// autres personnes avec qui il partage ses repas.
+export const OWNER_ID = 'me';
+
+export const ownerAsMember = (profile: UserProfile): HouseholdMember => ({
+  ...profile,
+  id: OWNER_ID,
+});
+
+export const newHouseholdMember = (overrides: Partial<HouseholdMember> = {}): HouseholdMember =>
+  computeTargetsForGoal(
+    {
+      ...DEFAULT_PROFILE,
+      name: '',
+      sex: 'female',
+      heightCm: 165,
+      weightKg: 70,
+      ...overrides,
+      id: overrides.id ?? generateId(),
+    } as HouseholdMember,
+    overrides.goal ?? 'maintain'
+  ) as HouseholdMember;
+
+export const getHousehold = async (): Promise<HouseholdMember[]> => {
+  const data = await AsyncStorage.getItem(KEYS.HOUSEHOLD);
+  if (!data) return [];
+  return (JSON.parse(data) as HouseholdMember[]).map((m) => ({ ...DEFAULT_PROFILE, ...m }));
+};
+
+export const saveHouseholdMember = async (member: HouseholdMember): Promise<HouseholdMember[]> => {
+  const list = await getHousehold();
+  const exists = list.some((m) => m.id === member.id);
+  const next = exists ? list.map((m) => (m.id === member.id ? member : m)) : [...list, member];
+  await AsyncStorage.setItem(KEYS.HOUSEHOLD, JSON.stringify(next));
+  return next;
+};
+
+export const deleteHouseholdMember = async (id: string): Promise<HouseholdMember[]> => {
+  const next = (await getHousehold()).filter((m) => m.id !== id);
+  await AsyncStorage.setItem(KEYS.HOUSEHOLD, JSON.stringify(next));
+  return next;
 };
 
 // Conservé pour compat avec les écrans existants qui affichent les couleurs/labels.

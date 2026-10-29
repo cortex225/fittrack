@@ -27,7 +27,7 @@ import {
   saveFavorites,
   saveNutritionLog,
 } from '../utils/storage';
-import { Meal, MealCategory, NutritionLog, Recipe } from '../types';
+import { FoodConflict, Meal, MealCategory, NutritionLog, Recipe } from '../types';
 import {
   MissingApiKeyError,
   analyzeFoodImage,
@@ -35,6 +35,14 @@ import {
   AnalyzedFood,
 } from '../services/gemini';
 import RecipeSwipeStack, { recipeImageUrl } from '../components/RecipeSwipeStack';
+import {
+  BlockedRecipe,
+  findFoodConflicts,
+  describeStrictExclusions,
+  findRecipeConflicts,
+  summarizeConflicts,
+} from '../utils/allergens';
+import { OWNER_ID } from '../utils/storage';
 
 const MEAL_CATS: { key: MealCategory; label: string; icon: any }[] = [
   { key: 'breakfast', label: 'Petit-déj', icon: 'cafe-outline' },
@@ -51,7 +59,7 @@ const DIFFICULTIES = [
 
 export default function NutritionScreen() {
   const insets = useSafeAreaInsets();
-  const { profile, playFx, addXp } = useApp();
+  const { profile, members, playFx, addXp } = useApp();
   const route = useRoute<any>();
 
   const [log, setLog] = useState<NutritionLog | null>(null);
@@ -80,6 +88,18 @@ export default function NutritionScreen() {
     fridge: '',
   });
   const [chefResults, setChefResults] = useState<Recipe[] | null>(null);
+  const [chefBlocked, setChefBlocked] = useState<BlockedRecipe[]>([]);
+  // Qui mange ce repas : par défaut tout le foyer, pour que les allergies
+  // de chacun soient toujours appliquées.
+  const [dinerIds, setDinerIds] = useState<string[] | null>(null);
+  const activeDinerIds = dinerIds ?? members.map((m) => m.id);
+  const diners = members.filter((m) => activeDinerIds.includes(m.id));
+  const toggleDiner = (id: string) => {
+    if (id === OWNER_ID) return; // le propriétaire mange toujours
+    setDinerIds(
+      activeDinerIds.includes(id) ? activeDinerIds.filter((x) => x !== id) : [...activeDinerIds, id]
+    );
+  };
   const [activeRecipe, setActiveRecipe] = useState<Recipe | null>(null);
 
   const loadData = useCallback(async () => {
@@ -254,16 +274,19 @@ export default function NutritionScreen() {
   const runChef = async () => {
     setChefLoading(true);
     setChefResults(null);
+    setChefBlocked([]);
     playFx('click');
     try {
-      const recipes = await generateChefRecipes({
+      const { recipes, blocked } = await generateChefRecipes({
         category: chefParams.category,
         goal: profile.goal,
         remainingCals: remaining,
         fridge: chefParams.fridge,
         complexity: chefParams.complexity,
+        diners,
       });
       setChefResults(recipes);
+      setChefBlocked(blocked);
       playFx('success');
     } catch (err: any) {
       console.error('[Gemini] generateChefRecipes:', err);
@@ -564,6 +587,7 @@ export default function NutritionScreen() {
 
             {analyzed && (
               <View style={{ padding: SPACING.lg }}>
+                <RecipeSafetyBanner conflicts={findFoodConflicts([analyzed.name], members)} />
                 <Text style={styles.scanName}>{analyzed.name}</Text>
                 <View style={styles.scanKcalRow}>
                   <Text style={styles.scanKcalBig}>{Math.round(analyzed.calories)}</Text>
@@ -647,6 +671,37 @@ export default function NutritionScreen() {
                 ))}
               </View>
 
+              {members.length > 1 && (
+                <>
+                  <Text style={styles.label}>Pour qui</Text>
+                  <View style={styles.catRow}>
+                    {members.map((m) => {
+                      const on = activeDinerIds.includes(m.id);
+                      return (
+                        <TouchableOpacity
+                          key={m.id}
+                          style={[styles.catChip, on && styles.catChipActive]}
+                          onPress={() => toggleDiner(m.id)}
+                        >
+                          <Ionicons name={on ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={on ? '#08110D' : COLORS.textSecondary} />
+                          <Text style={[styles.catChipText, on && { color: '#08110D' }]}>
+                            {m.id === OWNER_ID ? 'Moi' : m.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+              {diners.some((d) => (d.allergens?.length ?? 0) + (d.strictExclusions?.length ?? 0) > 0) && (
+                <View style={styles.safetyNote}>
+                  <Ionicons name="lock-closed" size={13} color={COLORS.danger} />
+                  <Text style={styles.safetyText}>
+                    Exclu d'office : {describeStrictExclusions(diners.map((d) => (d.id === OWNER_ID ? { ...d, name: 'toi' } : d)))}
+                  </Text>
+                </View>
+              )}
+
               <Text style={styles.label}>Complexité</Text>
               <View style={styles.catRow}>
                 {DIFFICULTIES.map((d) => (
@@ -681,7 +736,24 @@ export default function NutritionScreen() {
             </View>
           )}
 
-          {chefResults && !chefLoading && (
+          {chefResults && !chefLoading && chefBlocked.length > 0 && (
+            <View style={[styles.safetyNote, { marginHorizontal: SPACING.lg }]}>
+              <Ionicons name="shield-checkmark" size={14} color={COLORS.danger} />
+              <Text style={styles.safetyText}>
+                {chefBlocked.length} recette{chefBlocked.length > 1 ? 's écartées' : ' écartée'} :{' '}
+                {summarizeConflicts(chefBlocked.flatMap((b) => b.conflicts))}
+              </Text>
+            </View>
+          )}
+
+          {chefResults && !chefLoading && chefResults.length === 0 && (
+            <View style={styles.chefLoading}>
+              <Ionicons name="shield-checkmark-outline" size={36} color={COLORS.textMuted} />
+              <Text style={styles.chefLoadingText}>Aucune recette sûre cette fois. Relance le chef.</Text>
+            </View>
+          )}
+
+          {chefResults && !chefLoading && chefResults.length > 0 && (
             <View style={{ flex: 1, paddingHorizontal: SPACING.sm, paddingBottom: insets.bottom + SPACING.lg }}>
               <RecipeSwipeStack
                 recipes={chefResults}
@@ -720,6 +792,7 @@ export default function NutritionScreen() {
                 contentFit="cover"
               />
               <View style={{ padding: SPACING.lg }}>
+                <RecipeSafetyBanner conflicts={findRecipeConflicts(activeRecipe, members)} />
                 <Text style={styles.recipeFullName}>{activeRecipe.name}</Text>
                 <Text style={styles.recipeFullDesc}>{activeRecipe.desc}</Text>
                 <View style={styles.recipeStatRow}>
@@ -794,6 +867,16 @@ const ActionTile: React.FC<{
   </TouchableOpacity>
 );
 
+// Alerte rouge quand une recette (favori ancien, scan photo) touche une
+// exclusion stricte d'une personne du foyer.
+const RecipeSafetyBanner: React.FC<{ conflicts: FoodConflict[] }> = ({ conflicts }) =>
+  conflicts.length ? (
+    <View style={styles.dangerBanner}>
+      <Ionicons name="warning" size={16} color={COLORS.danger} />
+      <Text style={styles.dangerText}>Contient : {summarizeConflicts(conflicts)}</Text>
+    </View>
+  ) : null;
+
 const MacroBig: React.FC<{ color: string; value: number; label: string; suffix?: string }> = ({ color, value, label, suffix }) => (
   <View style={styles.macroBig}>
     <Text style={[styles.macroBigValue, { color }]}>
@@ -827,6 +910,28 @@ const TextField: React.FC<{
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
+  safetyNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: SPACING.sm + 2,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.dangerSoft,
+    marginBottom: SPACING.sm,
+  },
+  safetyText: { color: COLORS.text, fontSize: 12, fontWeight: '600', flex: 1 },
+  dangerBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: SPACING.md,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+    backgroundColor: COLORS.dangerSoft,
+    marginBottom: SPACING.md,
+  },
+  dangerText: { color: COLORS.danger, fontSize: 13, fontWeight: '700', flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-end',

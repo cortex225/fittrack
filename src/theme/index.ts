@@ -7,6 +7,7 @@ export const COLORS = {
   primary: '#10B981',      // emerald-500
   primaryLight: '#34D399',
   primaryDark: '#059669',
+  primarySoft: 'rgba(16,185,129,0.12)',
 
   accent: '#F59E0B',       // amber/yellow
   blue: '#3B82F6',
@@ -16,6 +17,7 @@ export const COLORS = {
   success: '#10B981',
   warning: '#F59E0B',
   danger: '#EF4444',
+  dangerSoft: 'rgba(239,68,68,0.12)',
 
   text: '#FFFFFF',
   textSecondary: '#94A3B8',
@@ -51,4 +53,15 @@ export const SHADOW = {
     shadowRadius: 12,
     elevation: 4,
   },
+};
+
+// Échelle typographique de JL-Fit 2.0 : peu de tailles, un vrai contraste
+// entre les titres et le reste.
+export const TYPE = {
+  display: { fontSize: 32, fontWeight: '800' as const, letterSpacing: -0.5 },
+  title: { fontSize: 22, fontWeight: '700' as const, letterSpacing: -0.3 },
+  headline: { fontSize: 17, fontWeight: '700' as const },
+  body: { fontSize: 15, fontWeight: '500' as const },
+  caption: { fontSize: 12, fontWeight: '600' as const },
+  overline: { fontSize: 11, fontWeight: '700' as const, letterSpacing: 1.4, textTransform: 'uppercase' as const },
 };

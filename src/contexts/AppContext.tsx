@@ -10,15 +10,20 @@ import {
   AppSettings,
   Gamification,
   GoalType,
+  HouseholdMember,
   UserProfile,
 } from '../types';
 import {
   GOAL_CONFIGS,
   addXp as addXpStorage,
   computeTargetsForGoal,
+  deleteHouseholdMember,
   getGamification,
+  getHousehold,
   getProfile,
   getSettings,
+  ownerAsMember,
+  saveHouseholdMember,
   saveProfile,
   saveSettings,
 } from '../utils/storage';
@@ -32,10 +37,16 @@ interface AppContextValue {
   settings: AppSettings;
   levelUpQueue: number | null;
   ready: boolean;
+  // Personnes avec qui on partage les repas (sans le propriétaire).
+  household: HouseholdMember[];
+  // Propriétaire + foyer : c'est cette liste qui sert aux exclusions strictes.
+  members: HouseholdMember[];
 
   setGoal: (goal: GoalType) => Promise<void>;
   updateProfile: (patch: Partial<UserProfile>) => Promise<void>;
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
+  upsertMember: (member: HouseholdMember) => Promise<void>;
+  removeMember: (id: string) => Promise<void>;
   addXp: (amount: number) => Promise<void>;
   dismissLevelUp: () => void;
   playFx: (fx: FxType) => void;
@@ -58,12 +69,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [levelUpQueue, setLevelUpQueue] = useState<number | null>(null);
   const [ready, setReady] = useState(false);
+  const [household, setHousehold] = useState<HouseholdMember[]>([]);
 
   const refresh = useCallback(async () => {
-    const [p, g, s] = await Promise.all([getProfile(), getGamification(), getSettings()]);
+    const [p, g, s, h] = await Promise.all([
+      getProfile(),
+      getGamification(),
+      getSettings(),
+      getHousehold(),
+    ]);
     setProfile(p);
     setGamification(g);
     setSettings(s);
+    setHousehold(h);
     configureFeedback({ haptics: s.hapticsEnabled });
   }, []);
 
@@ -90,6 +108,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const next = await saveSettings(patch);
     setSettings(next);
     configureFeedback({ haptics: next.hapticsEnabled });
+  }, []);
+
+  const upsertMember = useCallback(async (member: HouseholdMember) => {
+    setHousehold(await saveHouseholdMember(member));
+  }, []);
+
+  const removeMember = useCallback(async (id: string) => {
+    setHousehold(await deleteHouseholdMember(id));
   }, []);
 
   const addXp = useCallback(async (amount: number) => {
@@ -120,6 +146,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       targetCarbs: 280,
       targetFats: 80,
       targetWater: 2500,
+      allergens: [],
+      strictExclusions: [],
+      dislikes: [],
+      cuisines: [],
     };
 
     const currentLevel =
@@ -139,9 +169,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       settings,
       levelUpQueue,
       ready,
+      household,
+      members: [ownerAsMember(safeProfile), ...household],
       setGoal,
       updateProfile,
       updateSettings,
+      upsertMember,
+      removeMember,
       addXp,
       dismissLevelUp,
       playFx,
@@ -156,9 +190,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     settings,
     levelUpQueue,
     ready,
+    household,
     setGoal,
     updateProfile,
     updateSettings,
+    upsertMember,
+    removeMember,
     addXp,
     dismissLevelUp,
     playFx,

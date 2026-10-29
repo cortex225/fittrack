@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import {
   GoalType,
+  HouseholdMember,
   Meal,
   NutritionLog,
   Recipe,
@@ -9,6 +10,7 @@ import {
 } from '../types';
 import { getApiKey, getRecentTrainingContext } from '../utils/storage';
 import { generateRecipeImage } from './images';
+import { BlockedRecipe, partitionSafeRecipes, strictExclusionLabels } from '../utils/allergens';
 import {
   ACTIVITY_CONFIG,
   bmiCategory,
@@ -186,17 +188,50 @@ export interface ChefParams {
   remainingCals: number;
   fridge: string;
   complexity: string;
+  // Personnes qui mangent ce repas. Leurs exclusions strictes sont filtrées
+  // dans le code après la réponse de l'IA, quoi qu'elle renvoie.
+  diners?: HouseholdMember[];
 }
 
-export async function generateChefRecipes(params: ChefParams): Promise<Recipe[]> {
+export interface ChefResult {
+  recipes: Recipe[];
+  blocked: BlockedRecipe[];
+}
+
+const GOAL_LABEL: Record<GoalType, string> = {
+  cut: 'perte de poids',
+  maintain: 'maintien',
+  bulk: 'prise de muscle',
+};
+
+const buildDinersContext = (diners: HouseholdMember[]): string => {
+  if (!diners.length) return '';
+  const lines = diners.map(
+    (d) =>
+      `- ${d.name || 'Convive'} : ${GOAL_LABEL[d.goal]}, ${d.targetCalories} kcal/jour, ${d.targetProtein} g de protéines/jour.`
+  );
+  const strict = strictExclusionLabels(diners);
+  const dislikes = [...new Set(diners.flatMap((d) => d.dislikes ?? []))];
+  const cuisines = [...new Set(diners.flatMap((d) => d.cuisines ?? []))];
+  return `
+Ce repas est partagé par :
+${lines.join('\n')}
+${strict.length ? `INTERDIT ABSOLU (allergies, aucune trace, aucun dérivé, aucune huile) : ${strict.join(', ')}.` : ''}
+${dislikes.length ? `À éviter si possible : ${dislikes.join(', ')}.` : ''}
+${cuisines.length ? `Cuisines appréciées : ${cuisines.join(', ')}.` : ''}`;
+};
+
+export async function generateChefRecipes(params: ChefParams): Promise<ChefResult> {
   const ai = await getClient();
   const targetCals = params.remainingCals > 0 ? params.remainingCals : 600;
+  const diners = params.diners ?? [];
   const prompt = `
 Génère 5 recettes créatives, équilibrées, savoureuses pour un repas de type "${params.category}".
 Objectif athlète: ${params.goal}.
 Calories cibles par recette: ~${targetCals} kcal.
 Complexité: ${params.complexity}.
 Ingrédients disponibles: ${params.fridge || 'libre, sois créatif'}.
+${buildDinersContext(diners)}
 
 Pour chaque recette, fournis un 'imageKeyword' descriptif en anglais pour la photo (ex: "grilled chicken bowl with quinoa").
 `;
@@ -248,15 +283,19 @@ Pour chaque recette, fournis un 'imageKeyword' descriptif en anglais pour la pho
     TEXT_MODEL
   );
   const recipes = JSON.parse(response.text ?? '[]') as Recipe[];
-  // Génération d'images en parallèle via Cloudflare Workers AI (FLUX).
-  // Si une image échoue, la recette reste utilisable (fallback Pollinations dans le composant).
+  // Exclusions strictes vérifiées dans le code : une recette à risque n'est
+  // jamais montrée, même si l'IA a ignoré la consigne.
+  const { safe, blocked } = partitionSafeRecipes(recipes, diners);
+  // Génération d'images en parallèle via Cloudflare Workers AI (FLUX), seulement
+  // pour les recettes gardées. Si une image échoue, la recette reste utilisable
+  // (fallback Pollinations dans le composant).
   const withImages = await Promise.all(
-    recipes.map(async (r) => {
+    safe.map(async (r) => {
       const image = await generateRecipeImage(r.imageKeyword, r.name);
       return image ? { ...r, image } : r;
     })
   );
-  return withImages;
+  return { recipes: withImages, blocked };
 }
 
 // ── Smart Workout Generator ────────────────────────────────────────────────

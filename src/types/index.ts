@@ -132,6 +132,37 @@ export interface UserProfile {
   targetCarbs: number;
   targetFats: number;
   targetWater: number;    // ml
+  // Exclusions alimentaires. Les allergènes et exclusions strictes bloquent une
+  // recette dans le code ; les "dislikes" ne sont que des préférences envoyées à l'IA.
+  allergens?: AllergenKey[];
+  strictExclusions?: string[];
+  dislikes?: string[];
+  cuisines?: string[];
+}
+
+// ── Foyer ──────────────────────────────────────────────────────────────────
+export type AllergenKey =
+  | 'peanut'
+  | 'tree_nut'
+  | 'milk'
+  | 'egg'
+  | 'gluten'
+  | 'fish'
+  | 'shellfish'
+  | 'soy'
+  | 'sesame';
+
+// Personne avec qui on partage les repas. Le propriétaire de l'app reste
+// le `UserProfile` principal (id OWNER_ID).
+export interface HouseholdMember extends UserProfile {
+  id: string;
+}
+
+export interface FoodConflict {
+  memberId: string;
+  memberName: string;
+  label: string;   // ex. "Arachides" ou l'exclusion saisie
+  matched: string; // terme trouvé dans la recette
 }
 
 // ── Gamification ───────────────────────────────────────────────────────────

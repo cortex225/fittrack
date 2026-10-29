@@ -42,7 +42,7 @@ const ACTIVITY_LEVELS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'act
 export default function SettingsScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const { profile, settings, updateProfile, updateSettings, refresh, playFx } = useApp();
+  const { profile, settings, household, updateProfile, updateSettings, refresh, playFx } = useApp();
 
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [showKey, setShowKey] = useState(false);
@@ -161,6 +161,21 @@ export default function SettingsScreen() {
         contentContainerStyle={{ padding: SPACING.md, paddingBottom: insets.bottom + 80 }}
         showsVerticalScrollIndicator={false}
       >
+        {/* Foyer */}
+        <SectionTitle>FOYER</SectionTitle>
+        <TouchableOpacity style={[styles.card, styles.householdRow]} onPress={() => navigation.navigate('Household')}>
+          <Ionicons name="people-outline" size={22} color={COLORS.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.householdTitle}>Foyer et allergies</Text>
+            <Text style={styles.householdSub}>
+              {household.length
+                ? `Toi + ${household.map((m) => m.name).join(', ')}`
+                : 'Ajoute les personnes avec qui tu manges'}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+        </TouchableOpacity>
+
         {/* Profile */}
         <SectionTitle>PROFIL</SectionTitle>
         <View style={styles.card}>
@@ -450,6 +465,9 @@ const styles = StyleSheet.create({
     marginTop: SPACING.lg,
     marginBottom: SPACING.sm,
   },
+  householdRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  householdTitle: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
+  householdSub: { color: COLORS.textMuted, fontSize: 12, marginTop: 2 },
   card: {
     backgroundColor: COLORS.card,
     borderRadius: RADIUS.lg,
