@@ -41,6 +41,7 @@ export interface LibraryExercise {
   goalSpecificTip?: string;
   gifUrl?: string;
   exerciseId?: string; // ref vers le catalogue ExerciseDB (free-exercise-db)
+  increment?: number;  // kg ajoutés quand la fourchette de reps est atteinte (double progression)
 }
 
 export interface WorkoutSession {

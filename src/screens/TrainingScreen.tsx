@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Pressable,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -15,7 +16,16 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RADIUS, SPACING } from '../theme';
-import { EXERCISES_DB, WEEKLY_SCHEDULE } from '../data/library';
+import {
+  DAY_NAMES,
+  DEFAULT_PROGRAM_DAYS,
+  ProgramDays,
+  SessionKey,
+  UPPER_LOWER_4,
+  nextSession,
+  sessionForDay,
+} from '../data/programs';
+import { Chip } from '../components/ui';
 import { useApp } from '../contexts/AppContext';
 import { CustomWorkout, LibraryExercise, WorkoutSession } from '../types';
 import { MissingApiKeyError, generateSmartWorkout } from '../services/gemini';
@@ -33,6 +43,8 @@ import {
   deleteCustomWorkout,
   duplicateCustomWorkout,
   getCustomWorkouts,
+  getProgramDays,
+  saveProgramDays,
 } from '../utils/storage';
 
 export default function TrainingScreen() {
@@ -41,8 +53,20 @@ export default function TrainingScreen() {
   const { goal, playFx, profile } = useApp();
 
   const dayId = new Date().getDay();
-  const dayInfo = WEEKLY_SCHEDULE[dayId];
-  const baseExercises = EXERCISES_DB[dayId] || [];
+  // Programme haut / bas 4 jours : la séance du jour dépend des jours choisis.
+  const [programDays, setProgramDays] = useState<ProgramDays>(DEFAULT_PROGRAM_DAYS);
+  const [daysOpen, setDaysOpen] = useState(false);
+  const todaySession = sessionForDay(dayId, programDays);
+  const upcoming = nextSession(dayId, programDays);
+  const dayInfo = todaySession
+    ? { dayName: DAY_NAMES[dayId], title: todaySession.title, focus: todaySession.focus, type: 'Musculation' }
+    : {
+        dayName: DAY_NAMES[dayId],
+        title: 'Repos',
+        focus: upcoming ? `Prochaine séance : ${upcoming.session.title}, ${DAY_NAMES[upcoming.day].toLowerCase()}` : 'Récupération',
+        type: 'Repos',
+      };
+  const baseExercises = todaySession?.exercises ?? [];
   const isRest = baseExercises.length === 0;
 
   // Modal IA
@@ -66,6 +90,9 @@ export default function TrainingScreen() {
       let alive = true;
       getCustomWorkouts().then((list) => {
         if (alive) setCustoms(list);
+      });
+      getProgramDays().then((d) => {
+        if (alive) setProgramDays(d);
       });
       return () => {
         alive = false;
@@ -243,6 +270,23 @@ export default function TrainingScreen() {
             <View style={styles.restBox}>
               <Ionicons name="moon" size={28} color={COLORS.textMuted} />
               <Text style={styles.restText}>RÉCUPÉRATION</Text>
+              {upcoming && (
+                <TouchableOpacity
+                  style={[styles.startBtn, { alignSelf: 'stretch', marginTop: SPACING.md }]}
+                  onPress={() =>
+                    startSession({
+                      title: upcoming.session.title,
+                      focus: upcoming.session.focus,
+                      type: 'Musculation',
+                      exercises: upcoming.session.exercises,
+                    })
+                  }
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="play" size={16} color="#08110D" />
+                  <Text style={styles.startBtnText}>FAIRE {upcoming.session.title.toUpperCase()} MAINTENANT</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <>
@@ -271,9 +315,19 @@ export default function TrainingScreen() {
         </View>
 
         {/* ─── PLANNING HEBDO ──────────────────────────────────────────── */}
-        <Text style={[styles.sectionTitle, { marginTop: SPACING.xl }]}>STRUCTURE HEBDOMADAIRE</Text>
+        <View style={[styles.sectionHeader, { marginTop: SPACING.xl }]}>
+          <Text style={styles.sectionTitle}>TA SEMAINE · HAUT / BAS 4 JOURS</Text>
+          <TouchableOpacity onPress={() => setDaysOpen(true)} hitSlop={8}>
+            <Text style={styles.sectionAction}>CHANGER LES JOURS</Text>
+          </TouchableOpacity>
+        </View>
         {[1, 2, 3, 4, 5, 6, 0].map((d) => {
-          const s = WEEKLY_SCHEDULE[d];
+          const session = sessionForDay(d, programDays);
+          const s = {
+            dayName: DAY_NAMES[d],
+            title: session ? `${session.title} · ${session.focus}` : 'Repos',
+            type: session ? 'Musculation' : 'Récupération',
+          };
           const today = d === dayId;
           return (
             <View key={d} style={[styles.dayCard, today && styles.dayCardActive]}>
@@ -291,6 +345,38 @@ export default function TrainingScreen() {
           );
         })}
       </ScrollView>
+
+      {/* ─── JOURS DU PROGRAMME ─────────────────────────────────────────── */}
+      <Modal visible={daysOpen} transparent animationType="slide" onRequestClose={() => setDaysOpen(false)}>
+        <Pressable style={styles.daysOverlay} onPress={() => setDaysOpen(false)}>
+          <Pressable style={styles.daysSheet} onPress={() => {}}>
+            <Text style={styles.daysTitle}>Tes jours d'entraînement</Text>
+            {(Object.keys(UPPER_LOWER_4) as SessionKey[]).map((key) => (
+              <View key={key} style={{ marginTop: SPACING.md }}>
+                <Text style={styles.daysLabel}>{UPPER_LOWER_4[key].title} · {UPPER_LOWER_4[key].focus}</Text>
+                <View style={styles.daysRow}>
+                  {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                    <Chip
+                      key={d}
+                      label={DAY_NAMES[d].slice(0, 3)}
+                      active={programDays[key] === d}
+                      onPress={async () => {
+                        const next = { ...programDays, [key]: d };
+                        setProgramDays(next);
+                        await saveProgramDays(next);
+                        playFx('click');
+                      }}
+                    />
+                  ))}
+                </View>
+              </View>
+            ))}
+            <TouchableOpacity style={[styles.startBtn, { marginTop: SPACING.lg }]} onPress={() => setDaysOpen(false)}>
+              <Text style={styles.startBtnText}>OK</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* ─── MODAL IA ──────────────────────────────────────────────────── */}
       {/* Modal détail d'exercice (réutilisé partout) */}
@@ -602,6 +688,11 @@ function AIGeneratorModal({
 }
 
 const styles = StyleSheet.create({
+  daysOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  daysSheet: { backgroundColor: COLORS.card, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.lg, paddingBottom: SPACING.xxl },
+  daysTitle: { color: COLORS.text, fontSize: 18, fontWeight: '800' },
+  daysLabel: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '700', marginBottom: 8 },
+  daysRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   root: { flex: 1, backgroundColor: COLORS.background },
   header: {
     flexDirection: 'row',

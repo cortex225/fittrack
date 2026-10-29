@@ -19,6 +19,7 @@ import {
   WorkoutSession,
 } from '../types';
 import { LEVELS } from '../data/library';
+import { DEFAULT_PROGRAM_DAYS, ProgramDays } from '../data/programs';
 import {
   computeBMR,
   computeSafeCalorieOffset,
@@ -38,6 +39,7 @@ const KEYS = {
   HOUSEHOLD: '@jlfit_household',
   WEEK_PLAN: '@jlfit_week_plan',
   GROCERY_BUDGET: '@jlfit_grocery_budget',
+  PROGRAM_DAYS: '@jlfit_program_days',
   DISH_HISTORY: '@jlfit_dish_history',
 };
 
@@ -288,6 +290,16 @@ export const deleteHouseholdMember = async (id: string): Promise<HouseholdMember
   const next = (await getHousehold()).filter((m) => m.id !== id);
   await AsyncStorage.setItem(KEYS.HOUSEHOLD, JSON.stringify(next));
   return next;
+};
+
+// ── Programme (jours des séances) ──────────────────────────────────────────
+export const getProgramDays = async (): Promise<ProgramDays> => {
+  const data = await AsyncStorage.getItem(KEYS.PROGRAM_DAYS);
+  return data ? { ...DEFAULT_PROGRAM_DAYS, ...JSON.parse(data) } : DEFAULT_PROGRAM_DAYS;
+};
+
+export const saveProgramDays = async (days: ProgramDays): Promise<void> => {
+  await AsyncStorage.setItem(KEYS.PROGRAM_DAYS, JSON.stringify(days));
 };
 
 // ── Menus de la semaine ────────────────────────────────────────────────────

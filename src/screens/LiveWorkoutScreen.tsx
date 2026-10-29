@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ScrollView,
   StatusBar,
@@ -12,8 +12,9 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RADIUS, SPACING } from '../theme';
-import { Exercise, Set, WorkoutSession } from '../types';
-import { generateId, saveWorkout } from '../utils/storage';
+import { Exercise, Set, Workout, WorkoutSession } from '../types';
+import { generateId, getWorkouts, saveWorkout } from '../utils/storage';
+import { findLastPerformance, findRecords, formatKg, suggestNext } from '../utils/progression';
 import { useApp } from '../contexts/AppContext';
 import { findExerciseById, muscleFR } from '../services/exercises';
 import { AnimatedExerciseImage } from '../components/ExerciseCard';
@@ -52,6 +53,16 @@ export default function LiveWorkoutScreen() {
     })
   );
 
+  // Historique pour la double progression et les records.
+  const [history, setHistory] = useState<Workout[]>([]);
+  const [records, setRecords] = useState<{ name: string; e1rm: number }[]>([]);
+  // Texte saisi pour les charges, pour pouvoir taper 62,5.
+  const [weightDrafts, setWeightDrafts] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    getWorkouts().then(setHistory);
+  }, []);
+
   const elapsedRef = useRef<any>(null);
   const restRef = useRef<any>(null);
 
@@ -76,11 +87,36 @@ export default function LiveWorkoutScreen() {
   const currentEx = exercises[currentIdx];
   const progress = ((currentIdx + 1) / totalEx) * 100;
 
+  const last = useMemo(
+    () => (currentSrc ? findLastPerformance(history, currentSrc.name) : null),
+    [history, currentSrc]
+  );
+  const suggestion = useMemo(() => (currentSrc ? suggestNext(currentSrc, last) : null), [currentSrc, last]);
+
+  const fillSuggestion = () => {
+    if (!suggestion) return;
+    playFx('click');
+    setWeightDrafts((d) => {
+      const next = { ...d };
+      currentEx.sets.forEach((st) => delete next[st.id]);
+      return next;
+    });
+    setExercises((prev) =>
+      prev.map((ex, i) =>
+        i === currentIdx ? { ...ex, sets: ex.sets.map((st) => (st.weight ? st : { ...st, weight: suggestion.weight })) } : ex
+      )
+    );
+  };
+
   const formatTime = (s: number) =>
     `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 
   const updateSet = (setIdx: number, field: 'reps' | 'weight', value: string) => {
-    const v = parseInt(value, 10);
+    if (field === 'weight') {
+      const id = currentEx.sets[setIdx].id;
+      setWeightDrafts((d) => ({ ...d, [id]: value }));
+    }
+    const v = field === 'weight' ? parseFloat(value.replace(',', '.')) : parseInt(value, 10);
     setExercises((prev) =>
       prev.map((ex, i) =>
         i === currentIdx
@@ -123,6 +159,7 @@ export default function LiveWorkoutScreen() {
 
   const finish = async () => {
     playFx('success');
+    setRecords(findRecords(exercises, history));
     await saveWorkout({
       id: generateId(),
       name: session.title,
@@ -141,6 +178,16 @@ export default function LiveWorkoutScreen() {
           <Ionicons name="trophy" size={64} color={COLORS.primary} />
           <Text style={styles.doneTitle}>TERMINÉ !</Text>
           <Text style={styles.doneSub}>Ton corps te remerciera.</Text>
+          {records.length > 0 && (
+            <View style={styles.recordBox}>
+              <Text style={styles.recordTitle}>Nouveau record</Text>
+              {records.map((r) => (
+                <Text key={r.name} style={styles.recordLine}>
+                  {r.name} · 1RM estimé {formatKg(r.e1rm)}
+                </Text>
+              ))}
+            </View>
+          )}
           <View style={styles.xpPill}>
             <Text style={styles.xpPillBig}>+250</Text>
             <Text style={styles.xpPillSmall}>XP</Text>
@@ -240,6 +287,31 @@ export default function LiveWorkoutScreen() {
           {currentSrc.sets} SÉRIES · {currentSrc.reps} REPS · {currentSrc.rest}s REPOS
         </Text>
 
+        {/* Double progression */}
+        {last && (
+          <View style={styles.progCard}>
+            <Text style={styles.progLabel}>Dernière fois</Text>
+            <Text style={styles.progText}>
+              {formatKg(Math.max(...last.sets.map((x) => x.weight)))} × {last.sets.map((x) => x.reps).join(', ')}
+            </Text>
+            {suggestion && (
+              <>
+                <Text style={[styles.progLabel, { marginTop: SPACING.sm }]}>
+                  {suggestion.bumped ? 'Charge en hausse aujourd\'hui' : 'Aujourd\'hui'}
+                </Text>
+                <View style={styles.progRow}>
+                  <Text style={[styles.progText, suggestion.bumped && { color: COLORS.primary }]}>
+                    {formatKg(suggestion.weight)}, vise {suggestion.reps.join(' · ')}
+                  </Text>
+                  <TouchableOpacity onPress={fillSuggestion} style={styles.progBtn}>
+                    <Text style={styles.progBtnText}>Remplir</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        )}
+
         {/* Sets */}
         <View style={{ marginTop: SPACING.lg }}>
           {currentEx.sets.map((set, i) => (
@@ -253,10 +325,10 @@ export default function LiveWorkoutScreen() {
                 <Text style={styles.setInputLabel}>POIDS</Text>
                 <TextInput
                   style={styles.setInput}
-                  keyboardType="numeric"
-                  placeholder="kg"
+                  keyboardType="decimal-pad"
+                  placeholder={suggestion ? String(suggestion.weight) : 'kg'}
                   placeholderTextColor={COLORS.textMuted}
-                  value={set.weight ? String(set.weight) : ''}
+                  value={weightDrafts[set.id] ?? (set.weight ? String(set.weight) : '')}
                   onChangeText={(v) => updateSet(i, 'weight', v)}
                 />
               </View>
@@ -265,7 +337,7 @@ export default function LiveWorkoutScreen() {
                 <TextInput
                   style={styles.setInput}
                   keyboardType="numeric"
-                  placeholder={currentSrc.reps}
+                  placeholder={suggestion ? String(suggestion.reps[i] ?? currentSrc.reps) : currentSrc.reps}
                   placeholderTextColor={COLORS.textMuted}
                   value={set.reps ? String(set.reps) : ''}
                   onChangeText={(v) => updateSet(i, 'reps', v)}
@@ -343,6 +415,15 @@ export default function LiveWorkoutScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
+  progCard: { marginTop: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.lg, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
+  progLabel: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  progText: { color: COLORS.text, fontSize: 16, fontWeight: '700', marginTop: 2 },
+  progRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
+  progBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.pill, backgroundColor: COLORS.primarySoft },
+  progBtnText: { color: COLORS.primaryLight, fontWeight: '800', fontSize: 13 },
+  recordBox: { marginTop: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.lg, backgroundColor: COLORS.primarySoft, alignSelf: 'stretch' },
+  recordTitle: { color: COLORS.primaryLight, fontWeight: '800', fontSize: 14, marginBottom: 4 },
+  recordLine: { color: COLORS.text, fontSize: 13, fontWeight: '600', marginTop: 2 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

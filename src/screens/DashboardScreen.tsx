@@ -25,9 +25,10 @@ import {
   getNutritionLog,
   getWeightHistory,
   getWorkouts,
+  getProgramDays,
   saveNutritionLog,
 } from '../utils/storage';
-import { EXERCISES_DB, WEEKLY_SCHEDULE } from '../data/library';
+import { DEFAULT_PROGRAM_DAYS, ProgramDays, sessionForDay } from '../data/programs';
 import { NutritionLog, WeightEntry, Workout } from '../types';
 import { MissingApiKeyError, getCoachAdvice } from '../services/gemini';
 import { findExerciseById } from '../services/exercises';
@@ -202,17 +203,23 @@ export default function DashboardScreen() {
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const dayInfo = WEEKLY_SCHEDULE[date.getDay()];
-  const baseExercises = EXERCISES_DB[date.getDay()] ?? [];
+  const [programDays, setProgramDays] = useState<ProgramDays>(DEFAULT_PROGRAM_DAYS);
+  const session = sessionForDay(date.getDay(), programDays);
+  const dayInfo = session
+    ? { title: session.title, type: 'Musculation' }
+    : { title: 'Repos', type: 'Récupération' };
+  const baseExercises = session?.exercises ?? [];
   const isRest = baseExercises.length === 0;
 
   const loadAll = useCallback(async () => {
-    const [log, w, wt, k7] = await Promise.all([
+    const [log, w, wt, k7, pd] = await Promise.all([
       getNutritionLog(formatDateKey(date)),
       getWorkouts(),
       getWeightHistory(),
       getNutritionKcalRange(7),
+      getProgramDays(),
     ]);
+    setProgramDays(pd);
     setNutrition(log);
     setWorkouts(w);
     setWeights(wt);
