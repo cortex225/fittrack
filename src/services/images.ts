@@ -1,3 +1,4 @@
+import { API_BASE, usesServerAi } from './apiBase';
 // Génération d'images via Cloudflare Workers AI (FLUX-1-schnell).
 // Gratuit jusqu'à 10 000 neurones/jour (≈170 images 1024x1024 en 4 étapes).
 // Doc: https://developers.cloudflare.com/workers-ai/models/flux-1-schnell/
@@ -6,6 +7,25 @@ const CF_ACCOUNT_ID = process.env.EXPO_PUBLIC_CLOUDFLARE_ACCOUNT_ID ?? '';
 const CF_API_TOKEN = process.env.EXPO_PUBLIC_CLOUDFLARE_API_TOKEN ?? '';
 const CF_MODEL = '@cf/black-forest-labs/flux-1-schnell';
 
+const imagePrompt = (keyword: string, recipeName: string): string =>
+  `Top-down food photography of "${recipeName}" (${keyword}). Vibrant, appetizing, restaurant quality, natural light, shallow depth of field, on a clean plate, professional food magazine style.`;
+
+// Version web : la fonction /api/image appelle Workers AI par son binding.
+async function generateViaServer(keyword: string, recipeName: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_BASE}/image`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ prompt: imagePrompt(keyword, recipeName) }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { image?: string };
+    return data.image ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export const hasCloudflareCreds = (): boolean =>
   CF_ACCOUNT_ID.length > 0 && CF_API_TOKEN.length > 0;
 
@@ -13,6 +33,7 @@ export async function generateRecipeImage(
   keyword: string,
   recipeName: string
 ): Promise<string | null> {
+  if (usesServerAi()) return generateViaServer(keyword, recipeName);
   if (!hasCloudflareCreds()) {
     console.warn(
       '[Cloudflare] Identifiants manquants — définis EXPO_PUBLIC_CLOUDFLARE_ACCOUNT_ID et EXPO_PUBLIC_CLOUDFLARE_API_TOKEN dans .env.local'
@@ -20,7 +41,7 @@ export async function generateRecipeImage(
     return null;
   }
 
-  const prompt = `Top-down food photography of "${recipeName}" (${keyword}). Vibrant, appetizing, restaurant quality, natural light, shallow depth of field, on a clean plate, professional food magazine style.`;
+  const prompt = imagePrompt(keyword, recipeName);
   const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/run/${CF_MODEL}`;
 
   try {
@@ -73,7 +94,7 @@ export async function generateRecipeImage(
 // Doc : https://www.pexels.com/api/documentation/
 const PEXELS_API_KEY = process.env.EXPO_PUBLIC_PEXELS_API_KEY ?? '';
 
-export const hasPexelsKey = (): boolean => PEXELS_API_KEY.length > 0;
+export const hasPexelsKey = (): boolean => usesServerAi() || PEXELS_API_KEY.length > 0;
 
 export interface FoodPhoto {
   uri: string;
@@ -83,6 +104,15 @@ export interface FoodPhoto {
 
 export async function findFoodPhoto(query: string): Promise<FoodPhoto | null> {
   if (!hasPexelsKey() || !query.trim()) return null;
+  if (usesServerAi()) {
+    try {
+      const res = await fetch(`${API_BASE}/photo?query=${encodeURIComponent(query)}`);
+      const data = (await res.json()) as { photo?: FoodPhoto | null };
+      return data.photo ?? null;
+    } catch {
+      return null;
+    }
+  }
   const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1&orientation=landscape`;
   try {
     const res = await fetch(url, { headers: { Authorization: PEXELS_API_KEY } });

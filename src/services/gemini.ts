@@ -10,6 +10,7 @@ import {
 } from '../types';
 import { getApiKey, getRecentTrainingContext } from '../utils/storage';
 import { generateRecipeImage } from './images';
+import { API_BASE, usesServerAi } from './apiBase';
 import { BlockedRecipe, partitionSafeRecipes, strictExclusionLabels } from '../utils/allergens';
 import {
   ACTIVITY_CONFIG,
@@ -59,9 +60,34 @@ export class MissingApiKeyError extends Error {
   }
 }
 
-export const hasEmbeddedApiKey = (): boolean => EMBEDDED_API_KEY.length > 0;
+export const hasEmbeddedApiKey = (): boolean => usesServerAi() || EMBEDDED_API_KEY.length > 0;
 
-export async function getClient(): Promise<GoogleGenAI> {
+type GenerateParams = Parameters<GoogleGenAI['models']['generateContent']>[0];
+
+// Seule partie du SDK utilisée par l'app : generateContent puis .text.
+export interface AiClient {
+  models: { generateContent: (params: GenerateParams) => Promise<{ text?: string }> };
+}
+
+// Client qui relaie vers la fonction serveur /api/gemini (même forme de requête).
+const serverClient: AiClient = {
+  models: {
+    async generateContent(params) {
+      const res = await fetch(`${API_BASE}/gemini`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      const data = await res.json().catch(() => ({}));
+      // Le statut dans le message permet à callWithRetry de réessayer sur 429/503.
+      if (!res.ok) throw new Error(`${res.status} ${data?.error ?? 'Erreur serveur IA'}`);
+      return { text: data.text };
+    },
+  },
+};
+
+export async function getClient(): Promise<AiClient> {
+  if (usesServerAi()) return serverClient;
   const key = EMBEDDED_API_KEY || (await getApiKey());
   if (!key) throw new MissingApiKeyError();
   return new GoogleGenAI({ apiKey: key });
