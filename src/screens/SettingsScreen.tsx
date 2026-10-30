@@ -217,13 +217,13 @@ export default function SettingsScreen() {
             <View style={styles.metricSep} />
             <View style={styles.metricItem}>
               <Text style={styles.metricLabel}>BMR</Text>
-              <Text style={styles.metricValue}>{liveMetrics.bmr}</Text>
+              <Text style={styles.metricValue}>{liveMetrics.bmr.toLocaleString('fr-CA')}</Text>
               <Text style={styles.metricHint}>kcal au repos</Text>
             </View>
             <View style={styles.metricSep} />
             <View style={styles.metricItem}>
               <Text style={styles.metricLabel}>TDEE</Text>
-              <Text style={styles.metricValue}>{liveMetrics.tdee}</Text>
+              <Text style={styles.metricValue}>{liveMetrics.tdee.toLocaleString('fr-CA')}</Text>
               <Text style={styles.metricHint}>kcal au total</Text>
             </View>
           </View>
@@ -252,7 +252,7 @@ export default function SettingsScreen() {
                   <Text style={styles.rowTitle}>{cfg.label}</Text>
                   <Text style={styles.rowSub}>{cfg.description}</Text>
                 </View>
-                <Text style={styles.rowValue}>×{cfg.factor}</Text>
+                <Text style={styles.rowValue}>×{String(cfg.factor).replace('.', ',')}</Text>
                 <View style={styles.checkSlot}>
                   {active && <Ionicons name="checkmark" size={20} color={COLORS.primary} />}
                 </View>
@@ -298,7 +298,7 @@ export default function SettingsScreen() {
               value={`~${Math.abs(liveMetrics.deficit.kgPerWeek).toFixed(2)} kg/sem${profile.goal === 'cut' ? ' perdus' : ' pris'}`}
             />
           )}
-          <InfoRow inGroup label="Calories" value={`${profile.targetCalories} kcal`} />
+          <InfoRow inGroup label="Calories" value={`${profile.targetCalories.toLocaleString('fr-CA')} kcal`} />
           <InfoRow
             inGroup
             label="Macros"

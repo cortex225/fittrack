@@ -67,27 +67,27 @@ export const suggestGoal = (profile: Pick<UserProfile, 'weightKg' | 'heightCm'>)
   if (cat.key === 'underweight') {
     return {
       goal: 'bulk',
-      reason: `IMC ${bmi.toFixed(1)} en sous-poids. Une prise de masse douce te ramènera dans la zone saine (${ideal.min}–${ideal.max} kg).`,
+      reason: `IMC ${bmi.toFixed(1).replace('.', ',')} en sous-poids. Une prise de masse douce te ramènera dans la zone saine (${ideal.min}–${ideal.max} kg).`,
       kgDelta: ideal.min - profile.weightKg,
     };
   }
   if (cat.key === 'normal') {
     return {
       goal: 'maintain',
-      reason: `IMC ${bmi.toFixed(1)} dans la zone saine. Cap sur la maintenance et la qualité de la séance.`,
+      reason: `IMC ${bmi.toFixed(1).replace('.', ',')} dans la zone saine. Cap sur la maintenance et la qualité de la séance.`,
       kgDelta: 0,
     };
   }
   if (cat.key === 'overweight') {
     return {
       goal: 'cut',
-      reason: `IMC ${bmi.toFixed(1)} en surpoids. Une sèche progressive te ramènera vers ${ideal.max} kg (haut de la zone saine).`,
+      reason: `IMC ${bmi.toFixed(1).replace('.', ',')} en surpoids. Une sèche progressive te ramènera vers ${ideal.max} kg (haut de la zone saine).`,
       kgDelta: ideal.max - profile.weightKg,
     };
   }
   return {
     goal: 'cut',
-    reason: `IMC ${bmi.toFixed(1)} en obésité. Sèche progressive recommandée (visée : ${ideal.target} kg, IMC 22).`,
+    reason: `IMC ${bmi.toFixed(1).replace('.', ',')} en obésité. Sèche progressive recommandée (visée : ${ideal.target} kg, IMC 22).`,
     kgDelta: ideal.target - profile.weightKg,
   };
 };
