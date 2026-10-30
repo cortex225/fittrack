@@ -189,7 +189,7 @@ export default function TrainingScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Entraînement</Text>
             <Text style={styles.subtitle} numberOfLines={2}>
-              Haut / bas, 4 jours · double progression
+              Double progression, charge proposée à chaque série
             </Text>
           </View>
           <IconButton

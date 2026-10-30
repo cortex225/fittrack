@@ -177,10 +177,10 @@ export default function NutritionScreen() {
     await addMeal({
       id: generateId(),
       name: manualForm.name.trim(),
-      calories: parseFloat(manualForm.calories) || 0,
-      protein: parseFloat(manualForm.protein) || 0,
-      carbs: parseFloat(manualForm.carbs) || 0,
-      fats: parseFloat(manualForm.fats) || 0,
+      calories: parseFloat(manualForm.calories.replace(',', '.')) || 0,
+      protein: parseFloat(manualForm.protein.replace(',', '.')) || 0,
+      carbs: parseFloat(manualForm.carbs.replace(',', '.')) || 0,
+      fats: parseFloat(manualForm.fats.replace(',', '.')) || 0,
       category: manualForm.category,
       loggedAt: new Date().toISOString(),
     });

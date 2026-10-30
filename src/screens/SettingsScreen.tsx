@@ -65,8 +65,8 @@ export default function SettingsScreen() {
 
   // Métriques en live, recalculées à chaque saisie (pas besoin de "sauvegarder").
   const liveMetrics = useMemo(() => {
-    const w = parseFloat(weight) || profile.weightKg;
-    const h = parseFloat(height) || profile.heightCm;
+    const w = parseFloat(weight.replace(',', '.')) || profile.weightKg;
+    const h = parseFloat(height.replace(',', '.')) || profile.heightCm;
     const a = parseInt(age, 10) || profile.age;
     const bmi = computeBMI(w, h);
     const bmr = computeBMR({ weightKg: w, heightCm: h, age: a, sex: profile.sex });
@@ -99,8 +99,8 @@ export default function SettingsScreen() {
   };
 
   const saveProfileForm = async () => {
-    const weightNum = parseFloat(weight) || profile.weightKg;
-    const heightNum = parseFloat(height) || profile.heightCm;
+    const weightNum = parseFloat(weight.replace(',', '.')) || profile.weightKg;
+    const heightNum = parseFloat(height.replace(',', '.')) || profile.heightCm;
     const ageNum = parseInt(age, 10) || profile.age;
     const merged = computeTargetsForGoal(
       {
@@ -208,7 +208,7 @@ export default function SettingsScreen() {
           <View style={styles.metricsGrid}>
             <View style={styles.metricItem}>
               <Text style={styles.metricLabel}>IMC</Text>
-              <Text style={styles.metricValue}>{liveMetrics.bmi.toFixed(1)}</Text>
+              <Text style={styles.metricValue}>{liveMetrics.bmi.toFixed(1).replace('.', ',')}</Text>
               <View style={styles.metricCat}>
                 <View style={[styles.metricDot, { backgroundColor: liveMetrics.cat.color }]} />
                 <Text style={styles.metricHint}>{liveMetrics.cat.label}</Text>

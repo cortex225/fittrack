@@ -99,7 +99,7 @@ export default function StatsScreen() {
   );
 
   const saveWeight = async () => {
-    const v = parseFloat(weightInput);
+    const v = parseFloat(weightInput.replace(',', '.'));
     if (isNaN(v) || v <= 0) {
       Alert.alert('Erreur', 'Saisis un poids valide.');
       return;
@@ -232,7 +232,7 @@ export default function StatsScreen() {
             <View style={styles.vSep} />
             <Stat
               label="Volume"
-              value={totalVolume > 999 ? `${(totalVolume / 1000).toFixed(1)}k` : totalVolume}
+              value={totalVolume > 999 ? `${(totalVolume / 1000).toFixed(1).replace('.', ',')} k` : totalVolume}
               unit="kg"
             />
           </View>
@@ -300,7 +300,7 @@ export default function StatsScreen() {
               <TextInput
                 style={styles.weightInput}
                 keyboardType="decimal-pad"
-                placeholder="0.0"
+                placeholder="0,0"
                 placeholderTextColor={COLORS.textMuted}
                 value={weightInput}
                 onChangeText={setWeightInput}
@@ -350,7 +350,7 @@ export default function StatsScreen() {
               <View style={styles.chartLegend}>
                 <Legend label="Min" value={`${minW} kg`} />
                 <Legend label="Max" value={`${maxW} kg`} />
-                <Legend label="Écart" value={`${(maxW - minW).toFixed(1)} kg`} />
+                <Legend label="Écart" value={`${(maxW - minW).toFixed(1).replace('.', ',')} kg`} />
               </View>
             </>
           )}

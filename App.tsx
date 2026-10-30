@@ -97,7 +97,7 @@ function MainTabs() {
         // Toujours l'icône au-dessus du libellé, même sur un écran large.
         tabBarLabelPosition: 'below-icon',
         tabBarActiveTintColor: COLORS.text,
-        tabBarInactiveTintColor: COLORS.textMuted,
+        tabBarInactiveTintColor: COLORS.textSecondary,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
         tabBarLabel: TAB_LABELS[route.name] ?? route.name,
         tabBarIcon: ({ color, size, focused }) => {

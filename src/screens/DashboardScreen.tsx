@@ -551,7 +551,7 @@ export default function DashboardScreen() {
             <View>
               <Text style={styles.tileValue}>
                 {weekCount}
-                <Text style={styles.tileUnit}> sur 5</Text>
+                <Text style={styles.tileUnit}> sur {Object.keys(programDays).length}</Text>
               </Text>
               <View style={{ marginTop: 6 }}>
                 <Sparkline
@@ -573,7 +573,7 @@ export default function DashboardScreen() {
             <View style={{ flex: 1 }}>
               <TileLabel icon="body-outline" label="Poids" />
               <Text style={styles.tileValue}>
-                {currentWeight.toFixed(1)}
+                {currentWeight.toFixed(1).replace('.', ',')}
                 <Text style={styles.tileUnit}> kg</Text>
               </Text>
               {weights.length >= 2 && weightDelta !== 0 ? (
@@ -584,7 +584,7 @@ export default function DashboardScreen() {
                     color={weightDelta < 0 ? COLORS.primary : COLORS.red}
                   />
                   <Text style={[styles.deltaText, { color: weightDelta < 0 ? COLORS.primary : COLORS.red }]}>
-                    {weightDelta > 0 ? '+' : ''}{weightDelta.toFixed(1)} kg
+                    {weightDelta > 0 ? '+' : ''}{weightDelta.toFixed(1).replace('.', ',')} kg
                   </Text>
                 </View>
               ) : (
