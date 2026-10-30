@@ -176,7 +176,7 @@ export default function TrainingScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      <StatusBar barStyle="light-content" />
 
       <View style={styles.header}>
         <View>

@@ -64,7 +64,7 @@ export default function ExerciseDetailModal({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+        <StatusBar barStyle="light-content" />
 
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} hitSlop={12}>

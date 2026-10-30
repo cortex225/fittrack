@@ -80,7 +80,7 @@ export default function ExerciseLibraryScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      <StatusBar barStyle="light-content" />
 
       {/* Header */}
       <View style={styles.header}>

@@ -155,7 +155,7 @@ export default function StatsScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      <StatusBar barStyle="light-content" />
 
       <View style={styles.header}>
         <Text style={styles.title}>Stats</Text>

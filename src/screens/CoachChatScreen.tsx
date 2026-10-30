@@ -73,7 +73,7 @@ export default function CoachChatScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      <StatusBar barStyle="light-content" />
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
@@ -127,7 +127,7 @@ export default function CoachChatScreen() {
               <View style={[styles.bubble, styles.bubbleModel]}>
                 <ActivityIndicator size="small" color={COLORS.primary} />
               </View>
-            ) : null
+            ) : undefined
           }
         />
 
