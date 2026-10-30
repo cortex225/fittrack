@@ -3,6 +3,8 @@ import { View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { COLORS } from '../theme';
 
+let sparkCount = 0;
+
 interface Props {
   data: number[];
   color: string;
@@ -44,6 +46,8 @@ export default function Sparkline({
   showLastDot = true,
   strokeWidth = 2,
 }: Props) {
+  // Id unique par instance : sur le web, un id répété pointe vers un écran masqué.
+  const uid = React.useRef(`spark${++sparkCount}`).current;
   if (data.length === 0) {
     return <View style={{ width, height }} />;
   }
@@ -69,7 +73,7 @@ export default function Sparkline({
       ? `${linePath} L ${points[points.length - 1].x},${height} L ${points[0].x},${height} Z`
       : '';
 
-  const gradientId = `spark-${color.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const gradientId = `${uid}-${color.replace(/[^a-zA-Z0-9]/g, '')}`;
   const last = points[points.length - 1];
 
   return (

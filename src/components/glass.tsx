@@ -34,16 +34,23 @@ const Orb: React.FC<{ id: string; cx: string; cy: string; r: string; color: stri
   </>
 );
 
-export const AppBackground: React.FC = () => (
-  <View style={[StyleSheet.absoluteFill, { backgroundColor: COLORS.backgroundSolid }]} pointerEvents="none">
-    <Svg width="100%" height="100%">
-      <Orb id="o1" cx="0.12" cy="0.08" r="0.65" color="#1E7A5A" opacity={0.55} />
-      <Orb id="o2" cx="0.95" cy="0.32" r="0.55" color="#3B3FBF" opacity={0.42} />
-      <Orb id="o3" cx="0.25" cy="0.85" r="0.6" color="#8A3FB0" opacity={0.28} />
-      <Orb id="o4" cx="0.9" cy="0.95" r="0.45" color="#C2662D" opacity={0.18} />
-    </Svg>
-  </View>
-);
+// Chaque fond a ses propres identifiants de dégradé : sur le web, des id
+// répétés dans la page renvoient vers un écran masqué et les halos disparaissent.
+let bgCount = 0;
+
+export const AppBackground: React.FC = () => {
+  const key = React.useRef(`bg${++bgCount}`).current;
+  return (
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: COLORS.backgroundSolid }]} pointerEvents="none">
+      <Svg width="100%" height="100%">
+        <Orb id={`${key}o1`} cx="0.12" cy="0.08" r="0.65" color="#1E7A5A" opacity={0.55} />
+        <Orb id={`${key}o2`} cx="0.95" cy="0.32" r="0.55" color="#3B3FBF" opacity={0.42} />
+        <Orb id={`${key}o3`} cx="0.25" cy="0.85" r="0.6" color="#8A3FB0" opacity={0.28} />
+        <Orb id={`${key}o4`} cx="0.9" cy="0.95" r="0.45" color="#C2662D" opacity={0.18} />
+      </Svg>
+    </View>
+  );
+};
 
 // ── Surface de verre ───────────────────────────────────────────────────────
 interface GlassProps {
