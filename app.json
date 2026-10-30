@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0F0F1A"
+      "backgroundColor": "#05060B"
     },
     "ios": {
       "supportsTablet": true,
@@ -28,7 +28,7 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0F0F1A"
+        "backgroundColor": "#05060B"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -40,7 +40,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "name": "JL Fit",
+      "shortName": "JL Fit",
+      "themeColor": "#05060B",
+      "backgroundColor": "#05060B",
+      "lang": "fr"
     },
     "plugins": [
       [
