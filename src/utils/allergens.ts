@@ -58,7 +58,7 @@ export const ALLERGENS: AllergenDef[] = [
   },
   {
     key: 'egg',
-    label: 'Oeufs',
+    label: 'Œufs',
     icon: 'egg-outline',
     terms: ['oeuf', 'oeufs', 'egg', 'eggs', 'mayonnaise', 'mayo', 'meringue', 'omelette'],
   },
