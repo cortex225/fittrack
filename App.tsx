@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
 import { AppProvider, useApp } from './src/contexts/AppContext';
@@ -94,6 +94,8 @@ function MainTabs() {
           paddingBottom: 8,
         },
         tabBarBackground: () => <Glass radius={32} interactive style={StyleSheet.absoluteFill} />,
+        // Toujours l'icône au-dessus du libellé, même sur un écran large.
+        tabBarLabelPosition: 'below-icon',
         tabBarActiveTintColor: COLORS.text,
         tabBarInactiveTintColor: COLORS.textMuted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
@@ -197,12 +199,30 @@ function RootShell() {
   );
 }
 
+// Sur le web, l'app garde une largeur de téléphone, centrée, au lieu de
+// s'étirer sur tout l'écran d'un ordinateur.
+const PhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }) =>
+  Platform.OS === 'web' ? (
+    <View style={frame.outer}>
+      <View style={frame.inner}>{children}</View>
+    </View>
+  ) : (
+    <>{children}</>
+  );
+
+const frame = StyleSheet.create({
+  outer: { flex: 1, backgroundColor: '#000', alignItems: 'center' },
+  inner: { flex: 1, width: '100%', maxWidth: 460, overflow: 'hidden', backgroundColor: COLORS.backgroundSolid },
+});
+
 export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
       <AppProvider>
-        <RootShell />
+        <PhoneFrame>
+          <RootShell />
+        </PhoneFrame>
       </AppProvider>
     </SafeAreaProvider>
   );

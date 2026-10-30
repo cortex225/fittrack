@@ -1,7 +1,8 @@
 // Matériaux « Liquid Glass ».
 // - iOS 26+ : vrai Liquid Glass (expo-glass-effect).
 // - iOS plus ancien : flou système (expo-blur).
-// - Android et web : verre simulé (remplissage translucide, reflet en haut,
+// - Web : verre simulé + flou de l'arrière-plan (backdrop-filter du navigateur).
+// - Android : verre simulé (remplissage translucide, reflet en haut,
 //   liseré clair), sans flou pour rester fluide.
 import React from 'react';
 import { Platform, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
@@ -71,7 +72,7 @@ export const Glass: React.FC<GlassProps> = ({ style, radius = RADIUS.xl, tint, i
   }
 
   return (
-    <View style={[shape, styles.frame, style]}>
+    <View style={[shape, styles.frame, Platform.OS === 'web' && WEB_BLUR, style]}>
       {Platform.OS === 'ios' ? (
         <BlurView intensity={40} tint="systemUltraThinMaterialDark" style={StyleSheet.absoluteFill} />
       ) : null}
@@ -91,6 +92,12 @@ export const Glass: React.FC<GlassProps> = ({ style, radius = RADIUS.xl, tint, i
 export const GlassCard: React.FC<GlassProps & { padding?: number }> = ({ padding = 20, style, ...rest }) => (
   <Glass {...rest} style={[{ padding }, style]} />
 );
+
+// Propriété CSS propre au web, absente des types React Native.
+const WEB_BLUR = {
+  backdropFilter: 'blur(28px) saturate(170%)',
+  WebkitBackdropFilter: 'blur(28px) saturate(170%)',
+} as unknown as ViewStyle;
 
 const styles = StyleSheet.create({
   frame: {

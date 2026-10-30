@@ -189,7 +189,7 @@ export default function TrainingScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Entraînement</Text>
             <Text style={styles.subtitle} numberOfLines={2}>
-              {dayInfo.dayName} · {dayInfo.focus}
+              Haut / bas, 4 jours · double progression
             </Text>
           </View>
           <IconButton
@@ -202,7 +202,7 @@ export default function TrainingScreen() {
         {/* ─── Séance du jour ──────────────────────────────────────────── */}
         <Text style={styles.sectionTitle}>Séance du jour</Text>
         <GlassCard>
-          <Text style={styles.todayKicker}>{isRest ? `${dayInfo.dayName} · Repos` : `${dayInfo.dayName} · ${dayInfo.type}`}</Text>
+          <Text style={styles.todayKicker}>{isRest ? dayInfo.dayName : `${dayInfo.dayName} · ${dayInfo.type}`}</Text>
           <Text style={styles.todayTitle}>{dayInfo.title}</Text>
           <Text style={styles.todayFocus}>{dayInfo.focus}</Text>
 
