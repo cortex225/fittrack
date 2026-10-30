@@ -58,10 +58,13 @@ interface GlassProps {
   radius?: number;
   tint?: string;        // teinte légère du verre (ex. COLORS.primary)
   interactive?: boolean;
+  // Verre plus dense, pour une barre posée sur du contenu qui défile
+  // (sans vrai flou, le texte dessous resterait lisible à travers).
+  strong?: boolean;
   children?: React.ReactNode;
 }
 
-export const Glass: React.FC<GlassProps> = ({ style, radius = RADIUS.xl, tint, interactive, children }) => {
+export const Glass: React.FC<GlassProps> = ({ style, radius = RADIUS.xl, tint, interactive, strong, children }) => {
   const shape = { borderRadius: radius, overflow: 'hidden' as const };
 
   if (LIQUID) {
@@ -83,7 +86,12 @@ export const Glass: React.FC<GlassProps> = ({ style, radius = RADIUS.xl, tint, i
       {Platform.OS === 'ios' ? (
         <BlurView intensity={40} tint="systemUltraThinMaterialDark" style={StyleSheet.absoluteFill} />
       ) : null}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: tint ? `${tint}1F` : COLORS.glassFill }]} />
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: strong ? 'rgba(16,17,24,0.82)' : tint ? `${tint}1F` : COLORS.glassFill },
+        ]}
+      />
       <LinearGradient
         colors={['rgba(255,255,255,0.14)', 'rgba(255,255,255,0.02)', 'rgba(255,255,255,0)']}
         locations={[0, 0.35, 1]}

@@ -382,7 +382,7 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerDate}>{todayLabel}</Text>
-            <Text style={styles.largeTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+            <Text style={styles.largeTitle} numberOfLines={2}>
               {greetingFor(profile.name)}
             </Text>
           </View>

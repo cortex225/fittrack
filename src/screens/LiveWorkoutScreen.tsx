@@ -439,7 +439,7 @@ export default function LiveWorkoutScreen() {
           accessibilityRole="button"
           accessibilityLabel="Exercice précédent"
         >
-          <Glass radius={28} style={styles.footerSide}>
+          <Glass radius={28} strong style={styles.footerSide}>
             <Ionicons name="chevron-back" size={22} color={COLORS.text} />
           </Glass>
         </PressableScale>
@@ -451,7 +451,7 @@ export default function LiveWorkoutScreen() {
             </PressableScale>
           ) : (
             <PressableScale onPress={next} accessibilityRole="button">
-              <Glass radius={RADIUS.pill} style={styles.footerNext}>
+              <Glass radius={RADIUS.pill} strong style={styles.footerNext}>
                 <Text style={styles.footerNextText}>Exercice suivant</Text>
                 <Ionicons name="chevron-forward" size={18} color={COLORS.text} />
               </Glass>
@@ -466,7 +466,7 @@ export default function LiveWorkoutScreen() {
           accessibilityRole="button"
           accessibilityLabel="Exercice suivant"
         >
-          <Glass radius={28} style={styles.footerSide}>
+          <Glass radius={28} strong style={styles.footerSide}>
             <Ionicons name="chevron-forward" size={22} color={COLORS.text} />
           </Glass>
         </PressableScale>
