@@ -1,13 +1,17 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Ellipse, G, Path, Rect } from 'react-native-svg';
-import { COLORS, SPACING } from '../theme';
+import { COLORS, SPACING, TYPE } from '../theme';
 import { ExerciseMuscle } from '../data/exercises';
 
-const PRIMARY = COLORS.primary;
-const SECONDARY = '#F59E0B';
-const IDLE = '#1F2937';
-const STROKE = '#0F172A';
+// Une seule couleur d'accent : vert plein pour les muscles principaux,
+// vert translucide pour les secondaires, verre neutre pour le reste.
+export const MUSCLE_PRIMARY = COLORS.primary;
+export const MUSCLE_SECONDARY = 'rgba(48,209,88,0.38)';
+const PRIMARY = MUSCLE_PRIMARY;
+const SECONDARY = MUSCLE_SECONDARY;
+const IDLE = 'rgba(255,255,255,0.09)';
+const STROKE = 'rgba(255,255,255,0.14)';
 
 type MuscleKey =
   | 'neck' | 'shoulders' | 'chest' | 'biceps' | 'forearms' | 'abdominals'
@@ -118,5 +122,5 @@ export default function MuscleMap({ primaryMuscles, secondaryMuscles, view = 'bo
 
 const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', gap: SPACING.lg, justifyContent: 'center', alignItems: 'flex-start' },
-  viewLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginTop: 4 },
+  viewLabel: { ...TYPE.footnote, color: COLORS.textMuted, marginTop: 6 },
 });

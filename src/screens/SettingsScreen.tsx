@@ -8,13 +8,12 @@ import {
   Switch,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, RADIUS, SPACING } from '../theme';
+import { COLORS, RADIUS, SPACING, TYPE } from '../theme';
 import { useApp } from '../contexts/AppContext';
 import { ActivityLevel, GoalType } from '../types';
 import {
@@ -35,9 +34,13 @@ import {
   weeklyDeficitTarget,
 } from '../utils/health';
 import { hasEmbeddedApiKey } from '../services/gemini';
+import { Glass } from '../components/glass';
+import { Card, PressableScale, SectionLabel, Segmented } from '../components/ui';
 
 const GOALS: GoalType[] = ['cut', 'maintain', 'bulk'];
 const ACTIVITY_LEVELS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'very_active'];
+const GOAL_OPTIONS = GOALS.map((g) => ({ value: g, label: GOAL_CONFIGS[g].label }));
+const HAIRLINE = StyleSheet.hairlineWidth;
 
 export default function SettingsScreen() {
   const navigation = useNavigation<any>();
@@ -145,225 +148,234 @@ export default function SettingsScreen() {
     );
   };
 
+  const selectGoal = async (g: GoalType) => {
+    const merged = computeTargetsForGoal(profile, g);
+    await updateProfile(merged);
+    playFx('click');
+  };
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={26} color={COLORS.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Réglages</Text>
-        <View style={{ width: 26 }} />
+        <PressableScale onPress={() => navigation.goBack()} hitSlop={8} accessibilityLabel="Retour" accessibilityRole="button">
+          <Glass radius={20} interactive style={styles.iconBtn}>
+            <Ionicons name="chevron-back" size={22} color={COLORS.text} />
+          </Glass>
+        </PressableScale>
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: SPACING.md, paddingBottom: insets.bottom + 80 }}
+        contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingTop: SPACING.xs, paddingBottom: insets.bottom + 80 }}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
+        <Text style={styles.title}>Réglages</Text>
+
         {/* Foyer */}
-        <SectionTitle>FOYER</SectionTitle>
-        <TouchableOpacity style={[styles.card, styles.householdRow]} onPress={() => navigation.navigate('Household')}>
-          <Ionicons name="people-outline" size={22} color={COLORS.primary} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.householdTitle}>Foyer et allergies</Text>
-            <Text style={styles.householdSub}>
-              {household.length
-                ? `Toi + ${household.map((m) => m.name).join(', ')}`
-                : 'Ajoute les personnes avec qui tu manges'}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
-        </TouchableOpacity>
+        <SectionLabel>Foyer</SectionLabel>
+        <Group>
+          <PressableScale onPress={() => navigation.navigate('Household')} scaleTo={0.98} style={styles.row} accessibilityRole="button">
+            <IconTile icon="people-outline" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>Foyer et allergies</Text>
+              <Text style={styles.rowSub} numberOfLines={1}>
+                {household.length
+                  ? `Toi + ${household.map((m) => m.name).join(', ')}`
+                  : 'Ajoute les personnes avec qui tu manges'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+          </PressableScale>
+        </Group>
 
-        {/* Profile */}
-        <SectionTitle>PROFIL</SectionTitle>
-        <View style={styles.card}>
-          <Field label="Nom" value={name} onChangeText={setName} placeholder="Ton prénom" />
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Field label="Poids (kg)" value={weight} onChangeText={setWeight} keyboardType="numeric" style={{ flex: 1 }} />
-            <Field label="Taille (cm)" value={height} onChangeText={setHeight} keyboardType="numeric" style={{ flex: 1 }} />
-          </View>
-          <Field label="Âge" value={age} onChangeText={setAge} keyboardType="numeric" />
-
-          <TouchableOpacity style={styles.primaryBtn} onPress={saveProfileForm}>
-            <Text style={styles.primaryBtnText}>METTRE À JOUR LE PROFIL</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Profil */}
+        <SectionLabel>Profil</SectionLabel>
+        <Group>
+          <FieldRow label="Nom" value={name} onChangeText={setName} placeholder="Ton prénom" />
+          <FieldRow label="Poids" value={weight} onChangeText={setWeight} keyboardType="numeric" unit="kg" />
+          <FieldRow label="Taille" value={height} onChangeText={setHeight} keyboardType="numeric" unit="cm" />
+          <FieldRow label="Âge" value={age} onChangeText={setAge} keyboardType="numeric" unit="ans" />
+        </Group>
+        <PressableScale style={styles.primaryBtn} onPress={saveProfileForm} accessibilityRole="button">
+          <Text style={styles.primaryBtnText}>Mettre à jour le profil</Text>
+        </PressableScale>
 
         {/* Métriques santé live */}
-        <SectionTitle>MÉTRIQUES SANTÉ</SectionTitle>
-        <View style={styles.card}>
+        <SectionLabel hint="En direct">Métriques santé</SectionLabel>
+        <Card>
           <View style={styles.metricsGrid}>
             <View style={styles.metricItem}>
-              <Text style={styles.metricValue}>{liveMetrics.bmi.toFixed(1)}</Text>
               <Text style={styles.metricLabel}>IMC</Text>
-              <View style={[styles.metricBadge, { backgroundColor: `${liveMetrics.cat.color}22`, borderColor: liveMetrics.cat.color }]}>
-                <Text style={[styles.metricBadgeText, { color: liveMetrics.cat.color }]}>{liveMetrics.cat.label}</Text>
+              <Text style={styles.metricValue}>{liveMetrics.bmi.toFixed(1)}</Text>
+              <View style={styles.metricCat}>
+                <View style={[styles.metricDot, { backgroundColor: liveMetrics.cat.color }]} />
+                <Text style={styles.metricHint}>{liveMetrics.cat.label}</Text>
               </View>
             </View>
+            <View style={styles.metricSep} />
             <View style={styles.metricItem}>
+              <Text style={styles.metricLabel}>BMR</Text>
               <Text style={styles.metricValue}>{liveMetrics.bmr}</Text>
-              <Text style={styles.metricLabel}>BMR kcal</Text>
-              <Text style={styles.metricHint}>Repos</Text>
+              <Text style={styles.metricHint}>kcal au repos</Text>
             </View>
+            <View style={styles.metricSep} />
             <View style={styles.metricItem}>
+              <Text style={styles.metricLabel}>TDEE</Text>
               <Text style={styles.metricValue}>{liveMetrics.tdee}</Text>
-              <Text style={styles.metricLabel}>TDEE kcal</Text>
-              <Text style={styles.metricHint}>Total</Text>
+              <Text style={styles.metricHint}>kcal au total</Text>
             </View>
           </View>
-          <View style={styles.idealRow}>
-            <Ionicons name="fitness-outline" size={14} color={COLORS.textMuted} />
-            <Text style={styles.idealText}>
-              Poids sain : {liveMetrics.ideal.min}–{liveMetrics.ideal.max} kg · cible IMC 22 : {liveMetrics.ideal.target} kg
-            </Text>
+          <View style={styles.cardRows}>
+            <InfoRow label="Poids sain" value={`${liveMetrics.ideal.min}–${liveMetrics.ideal.max} kg`} />
+            <InfoRow label="Cible IMC 22" value={`${liveMetrics.ideal.target} kg`} />
           </View>
-        </View>
+        </Card>
 
         {/* Niveau d'activité */}
-        <SectionTitle>NIVEAU D'ACTIVITÉ</SectionTitle>
-        <View style={styles.card}>
+        <SectionLabel>Niveau d'activité</SectionLabel>
+        <Group>
           {ACTIVITY_LEVELS.map((lvl) => {
             const cfg = ACTIVITY_CONFIG[lvl];
             const active = profile.activityLevel === lvl;
             return (
-              <TouchableOpacity
+              <PressableScale
                 key={lvl}
-                style={[styles.activityRow, active && styles.activityRowActive]}
+                style={styles.row}
+                scaleTo={0.98}
                 onPress={() => setActivityLevel(lvl)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
               >
-                <View style={[styles.activityDot, active && { backgroundColor: COLORS.primary }]} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.activityLabel, active && { color: COLORS.text }]}>{cfg.label}</Text>
-                  <Text style={styles.activitySub}>{cfg.description}</Text>
+                  <Text style={styles.rowTitle}>{cfg.label}</Text>
+                  <Text style={styles.rowSub}>{cfg.description}</Text>
                 </View>
-                <Text style={styles.activityFactor}>×{cfg.factor}</Text>
-              </TouchableOpacity>
+                <Text style={styles.rowValue}>×{cfg.factor}</Text>
+                <View style={styles.checkSlot}>
+                  {active && <Ionicons name="checkmark" size={20} color={COLORS.primary} />}
+                </View>
+              </PressableScale>
             );
           })}
-        </View>
+        </Group>
 
-        {/* Suggestion IA */}
+        {/* Suggestion */}
         {liveMetrics.suggestion.goal !== profile.goal && (
           <>
-            <SectionTitle>SUGGESTION INTELLIGENTE</SectionTitle>
-            <View style={[styles.card, styles.suggestionCard]}>
+            <SectionLabel>Suggestion</SectionLabel>
+            <Card>
               <View style={styles.suggestionHeader}>
-                <Ionicons name="sparkles" size={18} color={COLORS.primary} />
+                <Ionicons name="sparkles-outline" size={20} color={COLORS.primary} />
                 <Text style={styles.suggestionTitle}>
                   Objectif recommandé : {GOAL_CONFIGS[liveMetrics.suggestion.goal].label}
                 </Text>
               </View>
               <Text style={styles.suggestionReason}>{liveMetrics.suggestion.reason}</Text>
-              <TouchableOpacity style={styles.primaryBtn} onPress={applySuggestedGoal}>
-                <Text style={styles.primaryBtnText}>APPLIQUER CETTE SUGGESTION</Text>
-              </TouchableOpacity>
-            </View>
+              <PressableScale style={styles.primaryBtn} onPress={applySuggestedGoal} accessibilityRole="button">
+                <Text style={styles.primaryBtnText}>Appliquer cette suggestion</Text>
+              </PressableScale>
+            </Card>
           </>
         )}
 
         {/* Objectif */}
-        <SectionTitle>OBJECTIF</SectionTitle>
-        <View style={styles.card}>
-          <View style={styles.goalRow}>
-            {GOALS.map((g) => {
-              const cfg = GOAL_CONFIGS[g];
-              const active = profile.goal === g;
-              return (
-                <TouchableOpacity
-                  key={g}
-                  style={[styles.goalBtn, active && { backgroundColor: cfg.color, borderColor: cfg.color }]}
-                  onPress={async () => {
-                    const merged = computeTargetsForGoal(profile, g);
-                    await updateProfile(merged);
-                    playFx('click');
-                  }}
-                >
-                  <Text style={[styles.goalText, active && { color: '#fff' }]}>{cfg.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
+        <SectionLabel>Objectif</SectionLabel>
+        <Segmented options={GOAL_OPTIONS} value={profile.goal} onChange={selectGoal} />
+        <Group style={{ marginTop: SPACING.md }}>
           {profile.goal !== 'maintain' && (
-            <View style={styles.deficitRow}>
-              <Ionicons
-                name={profile.goal === 'cut' ? 'trending-down-outline' : 'trending-up-outline'}
-                size={14}
-                color={COLORS.textMuted}
-              />
-              <Text style={styles.deficitText}>
-                {liveMetrics.deficit.kcalDelta > 0 ? '+' : ''}
-                {liveMetrics.deficit.kcalDelta} kcal/j · ~{Math.abs(liveMetrics.deficit.kgPerWeek).toFixed(2)} kg/sem
-                {profile.goal === 'cut' ? ' perdus' : ' pris'}
-              </Text>
-            </View>
+            <InfoRow
+              inGroup
+              label={profile.goal === 'cut' ? 'Déficit' : 'Surplus'}
+              value={`${liveMetrics.deficit.kcalDelta > 0 ? '+' : ''}${liveMetrics.deficit.kcalDelta} kcal/j`}
+            />
           )}
+          {profile.goal !== 'maintain' && (
+            <InfoRow
+              inGroup
+              label="Rythme"
+              value={`~${Math.abs(liveMetrics.deficit.kgPerWeek).toFixed(2)} kg/sem${profile.goal === 'cut' ? ' perdus' : ' pris'}`}
+            />
+          )}
+          <InfoRow inGroup label="Calories" value={`${profile.targetCalories} kcal`} />
+          <InfoRow
+            inGroup
+            label="Macros"
+            value={`P ${profile.targetProtein} g · G ${profile.targetCarbs} g · L ${profile.targetFats} g`}
+          />
+        </Group>
+        <Text style={styles.footnote}>Cibles auto-calculées à partir de ton profil et de ton objectif.</Text>
 
-          <View style={styles.macroSummary}>
-            <Text style={styles.macroSumLabel}>Cibles auto-calculées</Text>
-            <Text style={styles.macroSumValue}>
-              {profile.targetCalories} kcal · P {profile.targetProtein}g · G {profile.targetCarbs}g · L {profile.targetFats}g
-            </Text>
-          </View>
-        </View>
-
-        {/* API */}
+        {/* IA */}
         {hasEmbeddedApiKey() ? (
           <>
-            <SectionTitle>IA</SectionTitle>
-            <View style={styles.card}>
-              <View style={styles.embeddedKeyRow}>
-                <Ionicons name="sparkles" size={18} color={COLORS.primary} />
+            <SectionLabel>IA</SectionLabel>
+            <Group>
+              <View style={styles.row}>
+                <IconTile icon="sparkles-outline" />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.embeddedKeyTitle}>Coach IA, scan repas et chef IA actifs</Text>
-                  <Text style={styles.embeddedKeySub}>Propulsé par Gemini · clé fournie par l'app</Text>
+                  <Text style={styles.rowTitle}>Coach IA, scan repas et chef IA actifs</Text>
+                  <Text style={styles.rowSub}>Propulsé par Gemini · clé fournie par l'app</Text>
                 </View>
               </View>
-            </View>
+            </Group>
           </>
         ) : (
           <>
-            <SectionTitle>CLÉ API GEMINI</SectionTitle>
-            <View style={styles.card}>
+            <SectionLabel>Clé API Gemini</SectionLabel>
+            <Card>
               <Text style={styles.helper}>
                 Active le Coach IA, le scan photo de repas et le générateur de recettes. La clé est stockée chiffrée sur l'appareil.
               </Text>
               <View style={styles.keyRow}>
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  value={apiKeyInput}
-                  onChangeText={setApiKeyInput}
-                  placeholder="AIza..."
-                  placeholderTextColor={COLORS.textMuted}
-                  secureTextEntry={!showKey}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowKey((s) => !s)}>
-                  <Ionicons name={showKey ? 'eye-off-outline' : 'eye-outline'} size={20} color={COLORS.textSecondary} />
-                </TouchableOpacity>
+                <View style={styles.keyField}>
+                  <TextInput
+                    style={styles.keyInput}
+                    value={apiKeyInput}
+                    onChangeText={setApiKeyInput}
+                    placeholder="AIza..."
+                    placeholderTextColor={COLORS.textMuted}
+                    secureTextEntry={!showKey}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+                <PressableScale
+                  onPress={() => setShowKey((s) => !s)}
+                  accessibilityRole="button"
+                  accessibilityLabel={showKey ? 'Masquer la clé' : 'Afficher la clé'}
+                >
+                  <Glass radius={22} interactive style={styles.eyeBtn}>
+                    <Ionicons name={showKey ? 'eye-off-outline' : 'eye-outline'} size={20} color={COLORS.text} />
+                  </Glass>
+                </PressableScale>
               </View>
-              <TouchableOpacity style={styles.primaryBtn} onPress={saveKey} disabled={savingKey}>
+              <PressableScale
+                style={[styles.primaryBtn, savingKey && { opacity: 0.6 }]}
+                onPress={saveKey}
+                disabled={savingKey}
+                accessibilityRole="button"
+              >
                 <Text style={styles.primaryBtnText}>
-                  {settings.hasApiKey ? 'METTRE À JOUR LA CLÉ' : 'ENREGISTRER LA CLÉ'}
+                  {settings.hasApiKey ? 'Mettre à jour la clé' : 'Enregistrer la clé'}
                 </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </PressableScale>
+              <PressableScale
                 style={styles.linkBtn}
                 onPress={() => Linking.openURL('https://aistudio.google.com/app/apikey')}
+                accessibilityRole="link"
               >
-                <Ionicons name="open-outline" size={14} color={COLORS.primary} />
                 <Text style={styles.linkText}>Obtenir une clé sur Google AI Studio</Text>
-              </TouchableOpacity>
-            </View>
+                <Ionicons name="open-outline" size={14} color={COLORS.primary} />
+              </PressableScale>
+            </Card>
           </>
         )}
 
-        {/* Preferences */}
-        <SectionTitle>PRÉFÉRENCES</SectionTitle>
-        <View style={styles.card}>
+        {/* Préférences */}
+        <SectionLabel>Préférences</SectionLabel>
+        <Group>
           <SwitchRow
             icon="phone-portrait-outline"
             label="Retour haptique"
@@ -378,16 +390,16 @@ export default function SettingsScreen() {
             value={settings.soundEnabled}
             onChange={(v) => updateSettings({ soundEnabled: v })}
           />
-        </View>
+        </Group>
 
-        {/* Danger */}
-        <SectionTitle>DONNÉES</SectionTitle>
-        <View style={styles.card}>
-          <TouchableOpacity style={styles.dangerBtn} onPress={reset}>
-            <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
-            <Text style={styles.dangerText}>EFFACER TOUTES LES DONNÉES</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Données */}
+        <SectionLabel>Données</SectionLabel>
+        <Group>
+          <PressableScale style={styles.dangerRow} onPress={reset} scaleTo={0.98} accessibilityRole="button">
+            <Text style={styles.dangerText}>Effacer toutes les données</Text>
+          </PressableScale>
+        </Group>
+        <Text style={styles.footnote}>Supprime séances, repas, poids, profil et clé API de ce téléphone.</Text>
 
         <Text style={styles.version}>JL Fit · v1.0.0</Text>
       </ScrollView>
@@ -395,30 +407,54 @@ export default function SettingsScreen() {
   );
 }
 
-const SectionTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <Text style={styles.sectionTitle}>{children}</Text>
+// ── Liste groupée façon Réglages iOS : verre + séparateurs fins ────────────
+const Group: React.FC<{ children: React.ReactNode; style?: any }> = ({ children, style }) => {
+  const items = React.Children.toArray(children).filter(Boolean);
+  return (
+    <Glass style={style}>
+      {items.map((child, i) => (
+        <View key={i}>
+          {i > 0 && <View style={styles.sep} />}
+          {child}
+        </View>
+      ))}
+    </Glass>
+  );
+};
+
+const IconTile: React.FC<{ icon: keyof typeof Ionicons.glyphMap }> = ({ icon }) => (
+  <View style={styles.iconTile}>
+    <Ionicons name={icon} size={18} color={COLORS.primary} />
+  </View>
 );
 
-const Field: React.FC<{
+const InfoRow: React.FC<{ label: string; value: string; inGroup?: boolean }> = ({ label, value, inGroup }) => (
+  <View style={inGroup ? styles.infoRowGroup : styles.infoRow}>
+    <Text style={styles.infoLabel}>{label}</Text>
+    <Text style={styles.infoValue} numberOfLines={1}>{value}</Text>
+  </View>
+);
+
+const FieldRow: React.FC<{
   label: string;
   value: string;
   onChangeText: (v: string) => void;
   placeholder?: string;
   keyboardType?: any;
-  style?: any;
-  helper?: string;
-}> = ({ label, value, onChangeText, placeholder, keyboardType, style, helper }) => (
-  <View style={[{ marginBottom: SPACING.sm }, style]}>
-    <Text style={styles.label}>{label}</Text>
+  unit?: string;
+}> = ({ label, value, onChangeText, placeholder, keyboardType, unit }) => (
+  <View style={styles.fieldRow}>
+    <Text style={styles.fieldLabel}>{label}</Text>
     <TextInput
-      style={styles.input}
+      style={styles.fieldInput}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
       placeholderTextColor={COLORS.textMuted}
       keyboardType={keyboardType}
+      accessibilityLabel={label}
     />
-    {helper && <Text style={styles.fieldHelper}>{helper}</Text>}
+    {unit ? <Text style={styles.fieldUnit}>{unit}</Text> : null}
   </View>
 );
 
@@ -429,228 +465,155 @@ const SwitchRow: React.FC<{
   value: boolean;
   onChange: (v: boolean) => void;
 }> = ({ icon, label, sub, value, onChange }) => (
-  <View style={styles.switchRow}>
-    <Ionicons name={icon} size={20} color={COLORS.textSecondary} />
+  <View style={styles.row}>
+    <IconTile icon={icon} />
     <View style={{ flex: 1 }}>
-      <Text style={styles.switchLabel}>{label}</Text>
-      <Text style={styles.switchSub}>{sub}</Text>
+      <Text style={styles.rowTitle}>{label}</Text>
+      <Text style={styles.rowSub}>{sub}</Text>
     </View>
     <Switch
       value={value}
       onValueChange={onChange}
-      trackColor={{ false: COLORS.surface, true: COLORS.primary }}
+      trackColor={{ false: 'rgba(120,120,128,0.32)', true: COLORS.primary }}
       thumbColor="#fff"
+      ios_backgroundColor="rgba(120,120,128,0.32)"
     />
   </View>
 );
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
-  header: {
+  header: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  title: { ...TYPE.largeTitle, color: COLORS.text, paddingHorizontal: SPACING.xs },
+
+  sep: { height: HAIRLINE, backgroundColor: COLORS.border, marginLeft: SPACING.lg },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: 13,
+    minHeight: 52,
   },
-  title: { color: COLORS.text, fontSize: 17, fontWeight: '900', letterSpacing: 1 },
-
-  sectionTitle: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.sm,
-  },
-  householdRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  householdTitle: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
-  householdSub: { color: COLORS.textMuted, fontSize: 12, marginTop: 2 },
-  card: {
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  label: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 6,
-    marginTop: 6,
-  },
-  helper: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 16, marginBottom: SPACING.md },
-  input: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    color: COLORS.text,
-    fontSize: 14,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  fieldHelper: { color: COLORS.textMuted, fontSize: 10, marginTop: 4 },
-
-  goalRow: { flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: SPACING.md },
-  goalBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+  rowTitle: { ...TYPE.body, fontWeight: '500', color: COLORS.text },
+  rowSub: { ...TYPE.caption, fontWeight: '400', color: COLORS.textSecondary, marginTop: 2 },
+  rowValue: { ...TYPE.callout, fontWeight: '400', color: COLORS.textMuted, fontVariant: ['tabular-nums'] },
+  checkSlot: { width: 20, alignItems: 'center' },
+  iconTile: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    backgroundColor: COLORS.primarySoft,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  goalText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 12, letterSpacing: 0.8 },
+
+  fieldRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    minHeight: 52,
+  },
+  fieldLabel: { ...TYPE.body, color: COLORS.text, width: 88 },
+  fieldInput: {
+    flex: 1,
+    textAlign: 'right',
+    color: COLORS.text,
+    fontSize: 17,
+    fontWeight: '500',
+    fontVariant: ['tabular-nums'],
+    paddingVertical: 14,
+  },
+  fieldUnit: { ...TYPE.callout, fontWeight: '400', color: COLORS.textSecondary, marginLeft: 6, minWidth: 26 },
 
   primaryBtn: {
     backgroundColor: COLORS.primary,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.lg,
-    alignItems: 'center',
-    marginTop: SPACING.md,
-  },
-  primaryBtnText: { color: '#08110D', fontWeight: '900', fontSize: 13, letterSpacing: 1 },
-
-  macroSummary: {
-    marginTop: SPACING.md,
-    padding: SPACING.sm,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  macroSumLabel: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  macroSumValue: { color: COLORS.text, fontSize: 12, fontWeight: '700', marginTop: 4 },
-
-  keyRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  eyeBtn: {
-    width: 44,
-    height: 44,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
+    height: 52,
+    borderRadius: RADIUS.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    marginTop: SPACING.md,
   },
-  linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.sm, justifyContent: 'center' },
-  linkText: { color: COLORS.primary, fontSize: 12, fontWeight: '700' },
-
-  embeddedKeyRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  embeddedKeyTitle: { color: COLORS.text, fontWeight: '800', fontSize: 13 },
-  embeddedKeySub: { color: COLORS.textMuted, fontSize: 11, marginTop: 2 },
+  primaryBtnText: { color: COLORS.onPrimary, fontSize: 17, fontWeight: '600' },
 
   // Métriques santé
-  metricsGrid: { flexDirection: 'row', gap: SPACING.sm },
-  metricItem: {
-    flex: 1,
-    alignItems: 'center',
-    padding: SPACING.sm,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 4,
+  metricsGrid: { flexDirection: 'row' },
+  metricItem: { flex: 1, alignItems: 'flex-start' },
+  metricSep: { width: HAIRLINE, backgroundColor: COLORS.border, marginHorizontal: SPACING.md },
+  metricLabel: { ...TYPE.caption, color: COLORS.textSecondary },
+  metricValue: { ...TYPE.number, fontSize: 28, color: COLORS.text, marginTop: 2 },
+  metricHint: { ...TYPE.footnote, fontWeight: '400', color: COLORS.textMuted, marginTop: 2 },
+  metricCat: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  metricDot: { width: 6, height: 6, borderRadius: 3, marginTop: 2 },
+  cardRows: {
+    marginTop: SPACING.md,
+    paddingTop: SPACING.xs,
+    borderTopWidth: HAIRLINE,
+    borderTopColor: COLORS.border,
   },
-  metricValue: { color: COLORS.text, fontSize: 22, fontWeight: '900' },
-  metricLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  metricHint: { color: COLORS.textMuted, fontSize: 9 },
-  metricBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: RADIUS.pill,
-    borderWidth: 1,
-    marginTop: 4,
-  },
-  metricBadgeText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  idealRow: {
+  infoRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 6,
-    marginTop: SPACING.sm,
-    padding: SPACING.sm,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-  },
-  idealText: { color: COLORS.textSecondary, fontSize: 11, flex: 1 },
-
-  // Activité
-  activityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
     paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.sm,
-    borderRadius: RADIUS.md,
+    gap: SPACING.md,
   },
-  activityRowActive: { backgroundColor: `${COLORS.primary}11` },
-  activityDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: COLORS.border,
+  infoRowGroup: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    minHeight: 48,
+    gap: SPACING.md,
   },
-  activityLabel: { color: COLORS.textSecondary, fontWeight: '800', fontSize: 13 },
-  activitySub: { color: COLORS.textMuted, fontSize: 11, marginTop: 1 },
-  activityFactor: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700' },
+  infoLabel: { ...TYPE.body, color: COLORS.text },
+  infoValue: { ...TYPE.body, color: COLORS.textSecondary, fontVariant: ['tabular-nums'], flexShrink: 1, textAlign: 'right' },
 
   // Suggestion
-  suggestionCard: { borderColor: COLORS.primary, borderWidth: 1 },
-  suggestionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.sm },
-  suggestionTitle: { color: COLORS.text, fontWeight: '900', fontSize: 13 },
-  suggestionReason: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 16 },
+  suggestionHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.sm },
+  suggestionTitle: { ...TYPE.headline, color: COLORS.text, flex: 1 },
+  suggestionReason: { ...TYPE.callout, fontWeight: '400', color: COLORS.textSecondary, lineHeight: 21 },
 
-  // Déficit
-  deficitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: SPACING.sm,
-    padding: SPACING.sm,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
+  // Clé API
+  helper: { ...TYPE.callout, fontWeight: '400', color: COLORS.textSecondary, lineHeight: 21, marginBottom: SPACING.md },
+  keyRow: { flexDirection: 'row', gap: SPACING.sm, alignItems: 'center' },
+  keyField: {
+    flex: 1,
+    height: 44,
+    borderRadius: RADIUS.pill,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.md,
   },
-  deficitText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
-
-  switchRow: {
+  keyInput: { color: COLORS.text, fontSize: 16, paddingVertical: 0 },
+  eyeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  linkBtn: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  switchLabel: { color: COLORS.text, fontWeight: '700', fontSize: 14 },
-  switchSub: { color: COLORS.textMuted, fontSize: 11, marginTop: 2 },
-
-  dangerBtn: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.md,
-    backgroundColor: `${COLORS.danger}11`,
-    borderWidth: 1,
-    borderColor: `${COLORS.danger}33`,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
+    marginTop: SPACING.md,
+    paddingVertical: SPACING.xs,
   },
-  dangerText: { color: COLORS.danger, fontWeight: '800', fontSize: 13, letterSpacing: 1 },
+  linkText: { ...TYPE.callout, color: COLORS.primary },
+
+  footnote: {
+    ...TYPE.footnote,
+    fontWeight: '400',
+    color: COLORS.textMuted,
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    lineHeight: 17,
+  },
+
+  dangerRow: { minHeight: 52, alignItems: 'center', justifyContent: 'center', paddingHorizontal: SPACING.lg },
+  dangerText: { color: COLORS.danger, fontSize: 17, fontWeight: '500' },
 
   version: {
+    ...TYPE.footnote,
     textAlign: 'center',
     color: COLORS.textMuted,
-    fontSize: 11,
-    marginTop: SPACING.lg,
+    marginTop: SPACING.xl,
   },
 });

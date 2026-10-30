@@ -1,8 +1,10 @@
 import React from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, RADIUS, SPACING } from '../theme';
+import { COLORS, RADIUS, SPACING, TYPE } from '../theme';
 import { LEVELS } from '../data/library';
+import { Glass } from './glass';
+import { PressableScale } from './ui';
 
 interface Props {
   level: number | null;
@@ -14,14 +16,20 @@ const LevelUpOverlay: React.FC<Props> = ({ level, onDismiss }) => {
   return (
     <Modal visible={level !== null} transparent animationType="fade" onRequestClose={onDismiss}>
       <View style={styles.overlay}>
-        <View style={styles.card}>
-          <Ionicons name="trophy" size={64} color={COLORS.accent} style={styles.icon} />
-          <Text style={styles.label}>NIVEAU SUPÉRIEUR</Text>
-          <Text style={styles.level}>NIV. {level}</Text>
-          {data && <Text style={styles.name}>{data.name.toUpperCase()}</Text>}
-          <Pressable style={styles.btn} onPress={onDismiss}>
-            <Text style={styles.btnText}>C'EST PARTI</Text>
-          </Pressable>
+        <View style={styles.cardWrap}>
+          {/* Fond sous le verre : garde la carte lisible sur Android. */}
+          <View style={styles.cardUnder} />
+          <Glass radius={RADIUS.xl} style={styles.card}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="trophy-outline" size={30} color={COLORS.primary} />
+            </View>
+            <Text style={styles.label}>Niveau supérieur</Text>
+            <Text style={styles.level}>Niveau {level}</Text>
+            {data && <Text style={styles.name}>{data.name}</Text>}
+            <PressableScale style={styles.btn} onPress={onDismiss} accessibilityRole="button">
+              <Text style={styles.btnText}>C'est parti</Text>
+            </PressableScale>
+          </Glass>
         </View>
       </View>
     </Modal>
@@ -31,57 +39,49 @@ const LevelUpOverlay: React.FC<Props> = ({ level, onDismiss }) => {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: SPACING.lg,
   },
-  card: {
-    backgroundColor: COLORS.card,
+  cardWrap: { width: '100%', maxWidth: 340 },
+  cardUnder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
+    backgroundColor: 'rgba(18,20,28,0.85)',
+  },
+  card: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.xl,
+    paddingBottom: SPACING.lg,
     alignItems: 'center',
-    width: '100%',
-    maxWidth: 340,
-    borderWidth: 1,
-    borderColor: COLORS.accent,
   },
-  icon: { marginBottom: SPACING.md },
-  label: {
-    color: COLORS.accent,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 2,
-    marginBottom: 6,
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.md,
   },
-  level: {
-    color: COLORS.text,
-    fontSize: 44,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  name: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 6,
-    letterSpacing: 1,
-  },
+  label: { ...TYPE.callout, color: COLORS.textSecondary },
+  level: { ...TYPE.number, fontSize: 40, color: COLORS.text, marginTop: 2 },
+  name: { ...TYPE.headline, color: COLORS.primary, marginTop: 2 },
   btn: {
-    marginTop: SPACING.lg,
-    backgroundColor: COLORS.accent,
-    borderRadius: RADIUS.lg,
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.xl,
-    width: '100%',
+    marginTop: SPACING.xl,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.pill,
+    height: 50,
+    alignSelf: 'stretch',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  btnText: {
-    color: '#101010',
-    fontWeight: '900',
-    fontSize: 14,
-    letterSpacing: 1,
-  },
+  btnText: { color: COLORS.onPrimary, fontSize: 17, fontWeight: '600' },
 });
 
 export default LevelUpOverlay;

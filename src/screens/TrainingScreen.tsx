@@ -9,13 +9,12 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, RADIUS, SPACING } from '../theme';
+import { COLORS, RADIUS, SPACING, TYPE } from '../theme';
 import {
   DAY_NAMES,
   DEFAULT_PROGRAM_DAYS,
@@ -25,7 +24,8 @@ import {
   nextSession,
   sessionForDay,
 } from '../data/programs';
-import { Chip } from '../components/ui';
+import { Chip, PressableScale, Segmented } from '../components/ui';
+import { Glass, GlassCard } from '../components/glass';
 import { useApp } from '../contexts/AppContext';
 import { CustomWorkout, LibraryExercise, WorkoutSession } from '../types';
 import { MissingApiKeyError, generateSmartWorkout } from '../services/gemini';
@@ -174,69 +174,147 @@ export default function TrainingScreen() {
     playFx('success');
   };
 
+  const moreToday = Math.max(0, baseExercises.length - 4);
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" />
 
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Entraînement</Text>
-          <Text style={styles.subtitle}>{dayInfo.dayName} · {dayInfo.focus}</Text>
-        </View>
-        <TouchableOpacity style={styles.libBtn} onPress={() => navigation.navigate('ExerciseLibrary')}>
-          <Ionicons name="library-outline" size={14} color={COLORS.textSecondary} />
-          <Text style={styles.libBtnText}>EXOS</Text>
-        </TouchableOpacity>
-      </View>
-
       <ScrollView
-        contentContainerStyle={{ padding: SPACING.md, paddingBottom: insets.bottom + 96 }}
+        contentContainerStyle={{ paddingHorizontal: SPACING.lg, paddingBottom: insets.bottom + 120 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ─── ACTIONS PRINCIPALES ─────────────────────────────────────── */}
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={[styles.actionCard, styles.actionCustom]}
-            onPress={() => navigation.navigate('WorkoutBuilder')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: COLORS.primary }]}>
-              <Ionicons name="add" size={22} color="#08110D" />
-            </View>
-            <Text style={styles.actionTitle}>Créer ma séance</Text>
-            <Text style={styles.actionSub}>Choisis tes exos</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionCard, styles.actionIA]}
-            onPress={() => setShowGen(true)}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: COLORS.blue }]}>
-              <Ionicons name="sparkles" size={20} color="#08110D" />
-            </View>
-            <Text style={styles.actionTitle}>Générer par IA</Text>
-            <Text style={styles.actionSub}>Adapté à ton profil</Text>
-          </TouchableOpacity>
+        {/* ─── En-tête ─────────────────────────────────────────────────── */}
+        <View style={styles.header}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Entraînement</Text>
+            <Text style={styles.subtitle} numberOfLines={2}>
+              {dayInfo.dayName} · {dayInfo.focus}
+            </Text>
+          </View>
+          <IconButton
+            icon="library-outline"
+            label="Bibliothèque d'exercices"
+            onPress={() => navigation.navigate('ExerciseLibrary')}
+          />
         </View>
 
-        {/* ─── MES SÉANCES ─────────────────────────────────────────────── */}
+        {/* ─── Séance du jour ──────────────────────────────────────────── */}
+        <Text style={styles.sectionTitle}>Séance du jour</Text>
+        <GlassCard>
+          <Text style={styles.todayKicker}>{isRest ? `${dayInfo.dayName} · Repos` : `${dayInfo.dayName} · ${dayInfo.type}`}</Text>
+          <Text style={styles.todayTitle}>{dayInfo.title}</Text>
+          <Text style={styles.todayFocus}>{dayInfo.focus}</Text>
+
+          {isRest ? (
+            <View style={styles.restBox}>
+              <View style={styles.restIcon}>
+                <Ionicons name="moon-outline" size={22} color={COLORS.textSecondary} />
+              </View>
+              <Text style={styles.restText}>Jour de récupération. Laisse tes muscles se reconstruire.</Text>
+              {upcoming && (
+                <View style={{ alignSelf: 'stretch', marginTop: SPACING.md }}>
+                  <PressableScale
+                    style={styles.primaryBtn}
+                    onPress={() =>
+                      startSession({
+                        title: upcoming.session.title,
+                        focus: upcoming.session.focus,
+                        type: 'Musculation',
+                        exercises: upcoming.session.exercises,
+                      })
+                    }
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="play" size={16} color={COLORS.onPrimary} />
+                    <Text style={styles.primaryBtnText} numberOfLines={1}>
+                      Faire {upcoming.session.title} maintenant
+                    </Text>
+                  </PressableScale>
+                </View>
+              )}
+            </View>
+          ) : (
+            <>
+              <View style={styles.exList}>
+                {baseExercises.slice(0, 4).map((ex, i) => (
+                  <View key={i}>
+                    <View style={styles.hairline} />
+                    <PressableScale
+                      style={styles.exRow}
+                      onPress={() => setActiveExercise(ex)}
+                      scaleTo={0.98}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.exName} numberOfLines={1}>{ex.name}</Text>
+                      <Text style={styles.exMeta}>{ex.sets} × {ex.reps}</Text>
+                      <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+                    </PressableScale>
+                  </View>
+                ))}
+                {moreToday > 0 && (
+                  <>
+                    <View style={styles.hairline} />
+                    <Text style={styles.moreText}>
+                      et {moreToday} autre{moreToday > 1 ? 's' : ''} exercice{moreToday > 1 ? 's' : ''}
+                    </Text>
+                  </>
+                )}
+              </View>
+              <PressableScale style={[styles.primaryBtn, { marginTop: SPACING.md }]} onPress={launchSuggestion} accessibilityRole="button">
+                <Ionicons name="play" size={16} color={COLORS.onPrimary} />
+                <Text style={styles.primaryBtnText}>Lancer la séance</Text>
+              </PressableScale>
+              <Text style={styles.xpHint}>+250 XP à la fin de la séance</Text>
+            </>
+          )}
+        </GlassCard>
+
+        {/* ─── Créer / générer ─────────────────────────────────────────── */}
+        <View style={styles.actionsRow}>
+          <View style={{ flex: 1 }}>
+            <PressableScale onPress={() => navigation.navigate('WorkoutBuilder')} accessibilityRole="button">
+              <GlassCard style={styles.actionCard} padding={SPACING.md}>
+                <View style={styles.actionIcon}>
+                  <Ionicons name="add" size={22} color={COLORS.primary} />
+                </View>
+                <Text style={styles.actionTitle}>Créer ma séance</Text>
+                <Text style={styles.actionSub}>Choisis tes exercices</Text>
+              </GlassCard>
+            </PressableScale>
+          </View>
+          <View style={{ flex: 1 }}>
+            <PressableScale onPress={() => setShowGen(true)} accessibilityRole="button">
+              <GlassCard style={styles.actionCard} padding={SPACING.md}>
+                <View style={styles.actionIcon}>
+                  <Ionicons name="sparkles-outline" size={20} color={COLORS.primary} />
+                </View>
+                <Text style={styles.actionTitle}>Générer par IA</Text>
+                <Text style={styles.actionSub}>Adaptée à ton profil</Text>
+              </GlassCard>
+            </PressableScale>
+          </View>
+        </View>
+
+        {/* ─── Mes séances ─────────────────────────────────────────────── */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>MES SÉANCES ({customs.length})</Text>
+          <Text style={[styles.sectionTitle, styles.sectionTitleInline]}>
+            Mes séances{customs.length > 0 ? <Text style={styles.sectionCount}>  {customs.length}</Text> : null}
+          </Text>
           {customs.length > 0 && (
-            <TouchableOpacity onPress={() => navigation.navigate('WorkoutBuilder')} hitSlop={8}>
-              <Text style={styles.sectionAction}>+ NOUVELLE</Text>
-            </TouchableOpacity>
+            <PressableScale onPress={() => navigation.navigate('WorkoutBuilder')} hitSlop={8} accessibilityRole="button">
+              <Text style={styles.sectionAction}>Nouvelle</Text>
+            </PressableScale>
           )}
         </View>
 
         {customs.length === 0 ? (
-          <View style={styles.emptyCustom}>
-            <Ionicons name="barbell-outline" size={28} color={COLORS.textMuted} />
+          <GlassCard style={styles.emptyCustom}>
+            <Ionicons name="barbell-outline" size={26} color={COLORS.textMuted} />
             <Text style={styles.emptyCustomText}>
               Aucune séance enregistrée. Crée-en une ou laisse l'IA t'en composer une.
             </Text>
-          </View>
+          </GlassCard>
         ) : (
           customs.map((cw) => (
             <CustomWorkoutCard
@@ -251,134 +329,86 @@ export default function TrainingScreen() {
           ))
         )}
 
-        {/* ─── SUGGESTION DU JOUR ───────────────────────────────────────── */}
-        <Text style={[styles.sectionTitle, { marginTop: SPACING.xl }]}>SUGGESTION DU JOUR</Text>
-        <View style={styles.suggestionCard}>
-          <View style={styles.suggestionHead}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.suggestionTitle}>{dayInfo.title}</Text>
-              <Text style={styles.suggestionFocus}>⚡ {dayInfo.focus}</Text>
-            </View>
-            <View style={[styles.dayBadge, styles.dayBadgeActive]}>
-              <Text style={[styles.dayBadgeText, { color: '#08110D' }]}>
-                {dayInfo.dayName.slice(0, 3).toUpperCase()}
-              </Text>
-            </View>
+        {/* ─── Planning hebdo ──────────────────────────────────────────── */}
+        <View style={styles.sectionHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.sectionTitle, styles.sectionTitleInline]}>Ta semaine</Text>
+            <Text style={styles.sectionHint}>Haut / bas, 4 jours</Text>
           </View>
-
-          {isRest ? (
-            <View style={styles.restBox}>
-              <Ionicons name="moon" size={28} color={COLORS.textMuted} />
-              <Text style={styles.restText}>RÉCUPÉRATION</Text>
-              {upcoming && (
-                <TouchableOpacity
-                  style={[styles.startBtn, { alignSelf: 'stretch', marginTop: SPACING.md }]}
-                  onPress={() =>
-                    startSession({
-                      title: upcoming.session.title,
-                      focus: upcoming.session.focus,
-                      type: 'Musculation',
-                      exercises: upcoming.session.exercises,
-                    })
-                  }
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="play" size={16} color="#08110D" />
-                  <Text style={styles.startBtnText}>FAIRE {upcoming.session.title.toUpperCase()} MAINTENANT</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ) : (
-            <>
-              <View style={{ marginTop: SPACING.sm }}>
-                {baseExercises.slice(0, 4).map((ex, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    style={styles.exRow}
-                    onPress={() => setActiveExercise(ex)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.exLeft}>
-                      <Ionicons name="ellipse" size={5} color={COLORS.primary} />
-                      <Text style={styles.exName} numberOfLines={1}>{ex.name}</Text>
-                    </View>
-                    <Text style={styles.exMeta}>{ex.sets} × {ex.reps}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <TouchableOpacity style={styles.startBtn} onPress={launchSuggestion} activeOpacity={0.85}>
-                <Ionicons name="play" size={16} color="#08110D" />
-                <Text style={styles.startBtnText}>LANCER (+250 XP)</Text>
-              </TouchableOpacity>
-            </>
-          )}
+          <PressableScale onPress={() => setDaysOpen(true)} hitSlop={8} accessibilityRole="button">
+            <Text style={styles.sectionAction}>Modifier les jours</Text>
+          </PressableScale>
         </View>
-
-        {/* ─── PLANNING HEBDO ──────────────────────────────────────────── */}
-        <View style={[styles.sectionHeader, { marginTop: SPACING.xl }]}>
-          <Text style={styles.sectionTitle}>TA SEMAINE · HAUT / BAS 4 JOURS</Text>
-          <TouchableOpacity onPress={() => setDaysOpen(true)} hitSlop={8}>
-            <Text style={styles.sectionAction}>CHANGER LES JOURS</Text>
-          </TouchableOpacity>
-        </View>
-        {[1, 2, 3, 4, 5, 6, 0].map((d) => {
-          const session = sessionForDay(d, programDays);
-          const s = {
-            dayName: DAY_NAMES[d],
-            title: session ? `${session.title} · ${session.focus}` : 'Repos',
-            type: session ? 'Musculation' : 'Récupération',
-          };
-          const today = d === dayId;
-          return (
-            <View key={d} style={[styles.dayCard, today && styles.dayCardActive]}>
-              <View style={[styles.dayBadge, today && styles.dayBadgeActive]}>
-                <Text style={[styles.dayBadgeText, today && { color: '#08110D' }]}>
-                  {s.dayName.slice(0, 3).toUpperCase()}
-                </Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.dayTitle, today && { color: COLORS.text }]} numberOfLines={1}>{s.title}</Text>
-                <Text style={styles.dayType}>{s.type}</Text>
-              </View>
-              {today && <View style={styles.dot} />}
-            </View>
-          );
-        })}
-      </ScrollView>
-
-      {/* ─── JOURS DU PROGRAMME ─────────────────────────────────────────── */}
-      <Modal visible={daysOpen} transparent animationType="slide" onRequestClose={() => setDaysOpen(false)}>
-        <Pressable style={styles.daysOverlay} onPress={() => setDaysOpen(false)}>
-          <Pressable style={styles.daysSheet} onPress={() => {}}>
-            <Text style={styles.daysTitle}>Tes jours d'entraînement</Text>
-            {(Object.keys(UPPER_LOWER_4) as SessionKey[]).map((key) => (
-              <View key={key} style={{ marginTop: SPACING.md }}>
-                <Text style={styles.daysLabel}>{UPPER_LOWER_4[key].title} · {UPPER_LOWER_4[key].focus}</Text>
-                <View style={styles.daysRow}>
-                  {[1, 2, 3, 4, 5, 6, 0].map((d) => (
-                    <Chip
-                      key={d}
-                      label={DAY_NAMES[d].slice(0, 3)}
-                      active={programDays[key] === d}
-                      onPress={async () => {
-                        const next = { ...programDays, [key]: d };
-                        setProgramDays(next);
-                        await saveProgramDays(next);
-                        playFx('click');
-                      }}
-                    />
-                  ))}
+        <Glass radius={RADIUS.xl} style={styles.weekCard}>
+          {[1, 2, 3, 4, 5, 6, 0].map((d, idx) => {
+            const session = sessionForDay(d, programDays);
+            const s = {
+              dayName: DAY_NAMES[d],
+              title: session ? `${session.title} · ${session.focus}` : 'Repos',
+              type: session ? 'Musculation' : 'Récupération',
+            };
+            const today = d === dayId;
+            return (
+              <View key={d}>
+                {idx > 0 && <View style={[styles.hairline, { marginLeft: 72 }]} />}
+                <View style={styles.dayRow}>
+                  <View style={[styles.dayBadge, today && styles.dayBadgeActive]}>
+                    <Text style={[styles.dayBadgeText, today && { color: COLORS.onPrimary }]}>
+                      {s.dayName.slice(0, 3)}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.dayTitle, !session && { color: COLORS.textSecondary }]} numberOfLines={1}>
+                      {s.title}
+                    </Text>
+                    <Text style={styles.dayType}>{today ? `Aujourd'hui · ${s.type}` : s.type}</Text>
+                  </View>
                 </View>
               </View>
-            ))}
-            <TouchableOpacity style={[styles.startBtn, { marginTop: SPACING.lg }]} onPress={() => setDaysOpen(false)}>
-              <Text style={styles.startBtnText}>OK</Text>
-            </TouchableOpacity>
+            );
+          })}
+        </Glass>
+      </ScrollView>
+
+      {/* ─── Jours du programme ─────────────────────────────────────────── */}
+      <Modal visible={daysOpen} transparent animationType="slide" onRequestClose={() => setDaysOpen(false)}>
+        <Pressable style={styles.sheetOverlay} onPress={() => setDaysOpen(false)}>
+          <Pressable onPress={() => {}} style={styles.sheetBacking}>
+            <Glass radius={RADIUS.xl} style={[styles.sheet, { paddingBottom: insets.bottom + SPACING.lg }]}>
+              <View style={styles.grabber} />
+              <Text style={styles.sheetTitle}>Tes jours d'entraînement</Text>
+              <Text style={styles.sheetSub}>Choisis le jour de chaque séance du programme haut / bas.</Text>
+              {(Object.keys(UPPER_LOWER_4) as SessionKey[]).map((key) => (
+                <View key={key} style={{ marginTop: SPACING.lg }}>
+                  <Text style={styles.daysLabel}>
+                    {UPPER_LOWER_4[key].title}
+                    <Text style={styles.daysLabelMuted}> · {UPPER_LOWER_4[key].focus}</Text>
+                  </Text>
+                  <View style={styles.daysRow}>
+                    {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                      <Chip
+                        key={d}
+                        label={DAY_NAMES[d].slice(0, 3)}
+                        active={programDays[key] === d}
+                        onPress={async () => {
+                          const next = { ...programDays, [key]: d };
+                          setProgramDays(next);
+                          await saveProgramDays(next);
+                          playFx('click');
+                        }}
+                      />
+                    ))}
+                  </View>
+                </View>
+              ))}
+              <PressableScale style={[styles.primaryBtn, { marginTop: SPACING.xl }]} onPress={() => setDaysOpen(false)} accessibilityRole="button">
+                <Text style={styles.primaryBtnText}>Terminé</Text>
+              </PressableScale>
+            </Glass>
           </Pressable>
         </Pressable>
       </Modal>
 
-      {/* ─── MODAL IA ──────────────────────────────────────────────────── */}
       {/* Modal détail d'exercice (réutilisé partout) */}
       <ExerciseDetailModal
         visible={!!activeExercise}
@@ -386,6 +416,7 @@ export default function TrainingScreen() {
         libraryExercise={activeExercise}
       />
 
+      {/* ─── Modal IA ──────────────────────────────────────────────────── */}
       <AIGeneratorModal
         visible={showGen}
         onClose={() => {
@@ -428,7 +459,28 @@ export default function TrainingScreen() {
   );
 }
 
-// ── Card pour chaque séance perso ──────────────────────────────────────────
+// ── Bouton icône rond en verre ─────────────────────────────────────────────
+function IconButton({
+  icon,
+  label,
+  onPress,
+  color = COLORS.text,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  color?: string;
+}) {
+  return (
+    <PressableScale onPress={onPress} hitSlop={6} accessibilityRole="button" accessibilityLabel={label}>
+      <Glass radius={20} style={styles.iconBtn}>
+        <Ionicons name={icon} size={19} color={color} />
+      </Glass>
+    </PressableScale>
+  );
+}
+
+// ── Carte pour chaque séance perso ─────────────────────────────────────────
 function CustomWorkoutCard({
   workout,
   onLaunch,
@@ -444,30 +496,27 @@ function CustomWorkoutCard({
   onDelete: () => void;
   onTapExercise: (ex: LibraryExercise) => void;
 }) {
-  // Affiche les 3 premiers exos avec leur thumbnail si dispo
+  // Affiche les 3 premiers exos avec leur vignette si dispo
   const previewExos = workout.exercises.slice(0, 3);
   const moreCount = Math.max(0, workout.exercises.length - 3);
 
   return (
-    <View style={styles.customCard}>
-      <View style={styles.customHead}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.customName} numberOfLines={1}>{workout.name}</Text>
-          <Text style={styles.customMeta}>
-            {workout.focus} · {workout.exercises.length} exo{workout.exercises.length > 1 ? 's' : ''}
-          </Text>
-        </View>
-      </View>
+    <GlassCard style={styles.customCard}>
+      <Text style={styles.customName} numberOfLines={1}>{workout.name}</Text>
+      <Text style={styles.customMeta}>
+        {workout.focus} · {workout.exercises.length} exercice{workout.exercises.length > 1 ? 's' : ''}
+      </Text>
 
       <View style={styles.previewRow}>
         {previewExos.map((ex, i) => {
           const cat = ex.exerciseId ? findExerciseById(ex.exerciseId) : undefined;
           return (
-            <TouchableOpacity
+            <PressableScale
               key={i}
               style={styles.previewThumb}
               onPress={() => onTapExercise(ex)}
-              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={ex.name}
             >
               {cat ? (
                 <AnimatedExerciseImage exercise={cat} height={56} rounded />
@@ -476,7 +525,7 @@ function CustomWorkoutCard({
                   <Ionicons name="barbell-outline" size={20} color={COLORS.textMuted} />
                 </View>
               )}
-            </TouchableOpacity>
+            </PressableScale>
           );
         })}
         {moreCount > 0 && (
@@ -487,21 +536,17 @@ function CustomWorkoutCard({
       </View>
 
       <View style={styles.customActions}>
-        <TouchableOpacity style={[styles.customAction, styles.customActionMain]} onPress={onLaunch}>
-          <Ionicons name="play" size={14} color="#08110D" />
-          <Text style={styles.customActionMainText}>LANCER</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.customActionIcon} onPress={onEdit} hitSlop={6}>
-          <Ionicons name="create-outline" size={18} color={COLORS.textSecondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.customActionIcon} onPress={onDuplicate} hitSlop={6}>
-          <Ionicons name="copy-outline" size={18} color={COLORS.textSecondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.customActionIcon} onPress={onDelete} hitSlop={6}>
-          <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
-        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <PressableScale style={styles.primaryBtnSmall} onPress={onLaunch} accessibilityRole="button">
+            <Ionicons name="play" size={14} color={COLORS.onPrimary} />
+            <Text style={styles.primaryBtnText}>Lancer</Text>
+          </PressableScale>
+        </View>
+        <IconButton icon="create-outline" label="Modifier" onPress={onEdit} />
+        <IconButton icon="copy-outline" label="Dupliquer" onPress={onDuplicate} />
+        <IconButton icon="trash-outline" label="Supprimer" onPress={onDelete} color={COLORS.danger} />
       </View>
-    </View>
+    </GlassCard>
   );
 }
 
@@ -535,152 +580,141 @@ function AIGeneratorModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.genOverlay}>
-        <View style={[styles.genCard, { paddingBottom: insets.bottom + SPACING.md }]}>
-          <View style={styles.genHeader}>
-            <Text style={styles.genTitle}>{generated ? 'PROGRAMME GÉNÉRÉ' : 'PROGRAMME IA'}</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={26} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          {!generated ? (
-            <ScrollView style={{ maxHeight: 520 }} showsVerticalScrollIndicator={false}>
-              <Text style={styles.genLabel}>LIEU</Text>
-              <View style={styles.row}>
-                {([
-                  { key: 'home', label: 'MAISON', icon: 'home' as const },
-                  { key: 'gym',  label: 'SALLE',  icon: 'barbell' as const },
-                  { key: 'any',  label: 'TOUT',   icon: 'apps' as const },
-                ] satisfies { key: Location; label: string; icon: keyof typeof Ionicons.glyphMap }[]).map((opt) => {
-                  const active = location === opt.key;
-                  return (
-                    <TouchableOpacity
-                      key={opt.key}
-                      style={[styles.chip, active && styles.chipActive, { flexDirection: 'row', gap: 6 }]}
-                      onPress={() => setLocation(opt.key)}
-                    >
-                      <Ionicons name={opt.icon} size={12} color={active ? '#08110D' : COLORS.textSecondary} />
-                      <Text style={[styles.chipText, active && { color: '#08110D' }]}>{opt.label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
+      <View style={styles.sheetOverlay}>
+        <View style={styles.sheetBacking}>
+          <Glass radius={RADIUS.xl} style={[styles.sheet, { paddingBottom: insets.bottom + SPACING.md }]}>
+            <View style={styles.grabber} />
+            <View style={styles.genHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sheetTitle}>{generated ? 'Programme généré' : 'Programme IA'}</Text>
+                {!generated && <Text style={styles.sheetSub}>Une séance composée pour toi en quelques secondes.</Text>}
               </View>
+              <IconButton icon="close" label="Fermer" onPress={onClose} />
+            </View>
 
-              <Text style={styles.genLabel}>DURÉE</Text>
-              <View style={styles.row}>
-                {['30', '45', '60'].map((d) => (
-                  <TouchableOpacity
-                    key={d}
-                    style={[styles.chip, duration === d && styles.chipActive]}
-                    onPress={() => setDuration(d)}
-                  >
-                    <Text style={[styles.chipText, duration === d && { color: '#08110D' }]}>{d} MIN</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+            {!generated ? (
+              <ScrollView style={{ maxHeight: 520 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <Text style={styles.genLabel}>Lieu</Text>
+                <Segmented
+                  options={[
+                    { value: 'home' as Location, label: 'Maison' },
+                    { value: 'gym' as Location, label: 'Salle' },
+                    { value: 'any' as Location, label: 'Tout' },
+                  ]}
+                  value={location}
+                  onChange={setLocation}
+                />
 
-              <Text style={styles.genLabel}>STYLE</Text>
-              <View style={styles.row}>
-                {['Hypertrophie', 'Force', 'Conditionnement'].map((t) => (
-                  <TouchableOpacity
-                    key={t}
-                    style={[styles.chip, styleProp === t && styles.chipActive]}
-                    onPress={() => setStyle(t)}
-                  >
-                    <Text style={[styles.chipText, styleProp === t && { color: '#08110D' }]}>{t.toUpperCase()}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                <Text style={styles.genLabel}>Durée</Text>
+                <Segmented
+                  options={['30', '45', '60'].map((d) => ({ value: d, label: `${d} min` }))}
+                  value={duration}
+                  onChange={setDuration}
+                />
 
-              <Text style={styles.genLabel}>MUSCLES CIBLES (optionnel)</Text>
-              <View style={styles.musclesWrap}>
-                {ALL_MUSCLES.map((m) => {
-                  const active = targetMuscles.includes(m);
-                  return (
-                    <TouchableOpacity
-                      key={m}
-                      style={[styles.muscleChip, active && styles.chipActive]}
-                      onPress={() => toggleMuscle(m)}
-                    >
-                      <Text style={[styles.chipText, active && { color: '#08110D' }]}>{muscleFR(m)}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                <Text style={styles.genLabel}>Style</Text>
+                <View style={styles.chipsWrap}>
+                  {['Hypertrophie', 'Force', 'Conditionnement'].map((t) => (
+                    <Chip key={t} label={t} active={styleProp === t} onPress={() => setStyle(t)} />
+                  ))}
+                </View>
 
-              <Text style={styles.genLabel}>DEMANDE LIBRE (optionnel)</Text>
-              <TextInput
-                style={styles.intentInput}
-                value={userIntent}
-                onChangeText={setUserIntent}
-                placeholder="ex. Je veux brûler des calories, j'ai mal au dos donc évite les charges lourdes, j'ai seulement 20 min..."
-                placeholderTextColor={COLORS.textMuted}
-                multiline
-                numberOfLines={3}
-                maxLength={280}
-              />
-              <Text style={styles.intentHint}>L'IA prendra cette demande comme prioritaire.</Text>
+                <Text style={styles.genLabel}>Muscles ciblés (facultatif)</Text>
+                <View style={styles.chipsWrap}>
+                  {ALL_MUSCLES.map((m) => (
+                    <Chip key={m} label={muscleFR(m)} active={targetMuscles.includes(m)} onPress={() => toggleMuscle(m)} />
+                  ))}
+                </View>
 
-              <TouchableOpacity style={styles.genBtn} onPress={onGenerate} disabled={generating}>
-                {generating ? (
-                  <ActivityIndicator color="#08110D" />
-                ) : (
-                  <>
-                    <Ionicons name="sparkles" size={18} color="#08110D" />
-                    <Text style={styles.genBtnText}>GÉNÉRER</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </ScrollView>
-          ) : (
-            <>
-              <Text style={styles.generatedTitle}>{generated.title}</Text>
-              <Text style={styles.generatedFocus}>{generated.focus}</Text>
-              <ScrollView style={{ maxHeight: 360, marginVertical: SPACING.md }}>
-                {generated.exercises.map((ex, i) => {
-                  const cat = ex.exerciseId ? findExerciseById(ex.exerciseId) : undefined;
-                  return (
-                    <TouchableOpacity
-                      key={i}
-                      style={styles.generatedRow}
-                      onPress={() => onTapExercise(ex)}
-                      activeOpacity={0.7}
-                    >
-                      {cat ? (
-                        <View style={styles.thumbWrap}>
-                          <AnimatedExerciseImage exercise={cat} height={48} rounded />
-                        </View>
-                      ) : (
-                        <View style={[styles.thumbWrap, styles.previewPlaceholder]}>
-                          <Ionicons name="barbell-outline" size={18} color={COLORS.textMuted} />
-                        </View>
-                      )}
-                      <View style={{ flex: 1, gap: 2 }}>
-                        <Text style={styles.generatedName} numberOfLines={1}>{ex.name}</Text>
-                        {cat && (
-                          <Text style={styles.generatedMuscles} numberOfLines={1}>
-                            {cat.primaryMuscles.map(muscleFR).join(' · ')}
-                          </Text>
-                        )}
-                      </View>
-                      <Text style={styles.generatedMeta}>{ex.sets} × {ex.reps}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                <Text style={styles.genLabel}>Demande libre (facultatif)</Text>
+                <TextInput
+                  style={styles.intentInput}
+                  value={userIntent}
+                  onChangeText={setUserIntent}
+                  placeholder="ex. Je veux brûler des calories, j'ai mal au dos donc évite les charges lourdes, j'ai seulement 20 min..."
+                  placeholderTextColor={COLORS.textMuted}
+                  multiline
+                  numberOfLines={3}
+                  maxLength={280}
+                />
+                <Text style={styles.intentHint}>L'IA prendra cette demande comme prioritaire.</Text>
+
+                <PressableScale
+                  style={[styles.primaryBtn, { marginTop: SPACING.lg }, generating && { opacity: 0.7 }]}
+                  onPress={onGenerate}
+                  disabled={generating}
+                  accessibilityRole="button"
+                >
+                  {generating ? (
+                    <ActivityIndicator color={COLORS.onPrimary} />
+                  ) : (
+                    <>
+                      <Ionicons name="sparkles-outline" size={18} color={COLORS.onPrimary} />
+                      <Text style={styles.primaryBtnText}>Générer</Text>
+                    </>
+                  )}
+                </PressableScale>
               </ScrollView>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TouchableOpacity style={[styles.secondaryBtn, { flex: 1 }]} onPress={onSaveAsCustom}>
-                  <Ionicons name="bookmark-outline" size={16} color={COLORS.text} />
-                  <Text style={styles.secondaryBtnText}>ÉDITER</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.genBtn, { flex: 2, marginTop: 0 }]} onPress={onLaunch}>
-                  <Ionicons name="play" size={18} color="#08110D" />
-                  <Text style={styles.genBtnText}>LANCER</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
+            ) : (
+              <>
+                <Text style={styles.generatedTitle}>{generated.title}</Text>
+                <Text style={styles.generatedFocus}>{generated.focus}</Text>
+                <ScrollView style={{ maxHeight: 360, marginVertical: SPACING.md }} showsVerticalScrollIndicator={false}>
+                  <View style={styles.generatedList}>
+                    {generated.exercises.map((ex, i) => {
+                      const cat = ex.exerciseId ? findExerciseById(ex.exerciseId) : undefined;
+                      return (
+                        <View key={i}>
+                          {i > 0 && <View style={[styles.hairline, { marginLeft: 70 }]} />}
+                          <PressableScale
+                            style={styles.generatedRow}
+                            onPress={() => onTapExercise(ex)}
+                            scaleTo={0.98}
+                            accessibilityRole="button"
+                          >
+                            {cat ? (
+                              <View style={styles.thumbWrap}>
+                                <AnimatedExerciseImage exercise={cat} height={48} rounded />
+                              </View>
+                            ) : (
+                              <View style={[styles.thumbWrap, styles.previewPlaceholder]}>
+                                <Ionicons name="barbell-outline" size={18} color={COLORS.textMuted} />
+                              </View>
+                            )}
+                            <View style={{ flex: 1, gap: 2 }}>
+                              <Text style={styles.generatedName} numberOfLines={1}>{ex.name}</Text>
+                              {cat && (
+                                <Text style={styles.generatedMuscles} numberOfLines={1}>
+                                  {cat.primaryMuscles.map(muscleFR).join(' · ')}
+                                </Text>
+                              )}
+                            </View>
+                            <Text style={styles.generatedMeta}>{ex.sets} × {ex.reps}</Text>
+                          </PressableScale>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+                <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
+                  <View style={{ flex: 1 }}>
+                    <PressableScale onPress={onSaveAsCustom} accessibilityRole="button">
+                      <Glass radius={RADIUS.pill} style={styles.secondaryBtn}>
+                        <Ionicons name="bookmark-outline" size={17} color={COLORS.text} />
+                        <Text style={styles.secondaryBtnText}>Modifier</Text>
+                      </Glass>
+                    </PressableScale>
+                  </View>
+                  <View style={{ flex: 1.4 }}>
+                    <PressableScale style={styles.primaryBtn} onPress={onLaunch} accessibilityRole="button">
+                      <Ionicons name="play" size={16} color={COLORS.onPrimary} />
+                      <Text style={styles.primaryBtnText}>Lancer</Text>
+                    </PressableScale>
+                  </View>
+                </View>
+              </>
+            )}
+          </Glass>
         </View>
       </View>
     </Modal>
@@ -688,94 +722,111 @@ function AIGeneratorModal({
 }
 
 const styles = StyleSheet.create({
-  daysOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  daysSheet: { backgroundColor: COLORS.card, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.lg, paddingBottom: SPACING.xxl },
-  daysTitle: { color: COLORS.text, fontSize: 18, fontWeight: '800' },
-  daysLabel: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '700', marginBottom: 8 },
-  daysRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   root: { flex: 1, backgroundColor: COLORS.background },
+
+  // En-tête
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    alignItems: 'flex-start',
+    gap: SPACING.md,
+    paddingTop: SPACING.md,
   },
-  title: { color: COLORS.text, fontSize: 24, fontWeight: '800' },
-  subtitle: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', marginTop: 2, letterSpacing: 0.5 },
-  libBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: COLORS.surface,
-    borderColor: COLORS.border,
-    borderWidth: 1,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: RADIUS.pill,
-  },
-  libBtnText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
-
-  // Actions principales (créer/IA)
-  actionsRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.lg },
-  actionCard: {
-    flex: 1,
-    padding: SPACING.md,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    backgroundColor: COLORS.card,
-    gap: 6,
-  },
-  actionCustom: { borderColor: `${COLORS.primary}55` },
-  actionIA: { borderColor: `${COLORS.blue}55` },
-  actionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionTitle: { color: COLORS.text, fontWeight: '900', fontSize: 14, marginTop: 4 },
-  actionSub: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700' },
+  title: { ...TYPE.largeTitle, color: COLORS.text },
+  subtitle: { ...TYPE.callout, color: COLORS.textSecondary, marginTop: 2 },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
 
   // Sections
+  sectionTitle: { ...TYPE.title, color: COLORS.text, marginTop: SPACING.xl, marginBottom: SPACING.md },
+  sectionTitleInline: { marginTop: 0, marginBottom: 0 },
+  sectionCount: { color: COLORS.textMuted, fontWeight: '600' },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
-    marginTop: SPACING.sm,
+    alignItems: 'flex-end',
+    marginTop: SPACING.xl,
+    marginBottom: SPACING.md,
+    gap: SPACING.md,
   },
-  sectionTitle: { color: COLORS.textMuted, fontSize: 10, fontWeight: '900', letterSpacing: 1.5, marginBottom: SPACING.sm },
-  sectionAction: { color: COLORS.primary, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
+  sectionHint: { ...TYPE.caption, color: COLORS.textMuted, marginTop: 2 },
+  sectionAction: { ...TYPE.callout, color: COLORS.primary, paddingBottom: 2 },
+  hairline: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
+
+  // Séance du jour
+  todayKicker: { ...TYPE.caption, color: COLORS.textMuted },
+  todayTitle: { ...TYPE.largeTitle, fontSize: 30, color: COLORS.text, marginTop: 4 },
+  todayFocus: { ...TYPE.body, color: COLORS.textSecondary, marginTop: 2 },
+  exList: { marginTop: SPACING.md },
+  exRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
+  exName: { ...TYPE.body, color: COLORS.text, flex: 1 },
+  exMeta: { ...TYPE.callout, color: COLORS.textSecondary, fontVariant: ['tabular-nums'] },
+  moreText: { ...TYPE.caption, color: COLORS.textMuted, paddingTop: 12 },
+  xpHint: { ...TYPE.footnote, color: COLORS.textMuted, textAlign: 'center', marginTop: SPACING.sm },
+  restBox: { marginTop: SPACING.lg, alignItems: 'center', gap: SPACING.sm },
+  restIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  restText: { ...TYPE.callout, color: COLORS.textSecondary, textAlign: 'center' },
+
+  // Boutons
+  primaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    alignSelf: 'stretch',
+    backgroundColor: COLORS.primary,
+    paddingVertical: 15,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: RADIUS.pill,
+  },
+  primaryBtnSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 40,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.pill,
+  },
+  primaryBtnText: { color: COLORS.onPrimary, fontSize: 17, fontWeight: '600' },
+  secondaryBtn: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryBtnText: { color: COLORS.text, fontSize: 17, fontWeight: '600' },
+
+  // Actions principales (créer / IA)
+  actionsRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md },
+  actionCard: { gap: 2, minHeight: 128 },
+  actionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.md,
+  },
+  actionTitle: { ...TYPE.headline, color: COLORS.text },
+  actionSub: { ...TYPE.caption, color: COLORS.textSecondary },
 
   // Mes séances
-  emptyCustom: {
-    alignItems: 'center',
-    gap: 8,
-    padding: SPACING.lg,
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderStyle: 'dashed',
-  },
-  emptyCustomText: { color: COLORS.textMuted, fontSize: 12, textAlign: 'center' },
+  emptyCustom: { alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.xl },
+  emptyCustomText: { ...TYPE.callout, color: COLORS.textSecondary, textAlign: 'center' },
 
-  customCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-    gap: SPACING.sm,
-  },
-  customHead: { flexDirection: 'row', alignItems: 'center' },
-  customName: { color: COLORS.text, fontSize: 16, fontWeight: '900' },
-  customMeta: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', marginTop: 2 },
+  customCard: { marginBottom: SPACING.md },
+  customName: { ...TYPE.headline, fontSize: 19, color: COLORS.text },
+  customMeta: { ...TYPE.caption, color: COLORS.textSecondary, marginTop: 2 },
 
-  previewRow: { flexDirection: 'row', gap: 6 },
+  previewRow: { flexDirection: 'row', gap: 8, marginTop: SPACING.md },
   previewThumb: { width: 56, height: 56, borderRadius: RADIUS.md, overflow: 'hidden' },
   previewPlaceholder: {
     width: '100%',
@@ -784,212 +835,73 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  previewMore: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewMoreText: { color: COLORS.textSecondary, fontWeight: '900', fontSize: 13 },
+  previewMore: { backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
+  previewMoreText: { ...TYPE.callout, color: COLORS.textSecondary, fontVariant: ['tabular-nums'] },
 
-  customActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  customAction: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  customActionMain: {
-    flex: 1,
-    backgroundColor: COLORS.primary,
-    paddingVertical: 10,
-    borderRadius: RADIUS.md,
-    justifyContent: 'center',
-  },
-  customActionMainText: { color: '#08110D', fontWeight: '900', fontSize: 12, letterSpacing: 0.8 },
-  customActionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Suggestion du jour
-  suggestionCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  suggestionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  suggestionTitle: { color: COLORS.text, fontSize: 18, fontWeight: '900' },
-  suggestionFocus: { color: COLORS.primary, fontSize: 11, fontWeight: '700', marginTop: 2 },
-
-  restBox: {
-    marginTop: SPACING.md,
-    padding: SPACING.lg,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    gap: 6,
-  },
-  restText: { color: COLORS.textMuted, fontSize: 11, letterSpacing: 1.5, fontWeight: '800' },
-
-  exRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 6,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
-  exLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, marginRight: 8 },
-  exName: { color: COLORS.text, fontSize: 13, fontWeight: '600', flex: 1 },
-  exMeta: {
-    color: COLORS.textSecondary,
-    fontSize: 11,
-    fontWeight: '700',
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.sm,
-  },
-
-  startBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: SPACING.md,
-    backgroundColor: COLORS.primary,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.md,
-  },
-  startBtnText: { color: '#08110D', fontWeight: '900', fontSize: 12, letterSpacing: 1 },
+  customActions: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginTop: SPACING.md },
 
   // Hebdo
-  dayCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    backgroundColor: COLORS.card,
-    padding: SPACING.sm,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 6,
-  },
-  dayCardActive: { borderColor: COLORS.primary, backgroundColor: `${COLORS.primary}11` },
+  weekCard: { paddingHorizontal: SPACING.md },
+  dayRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingVertical: 12 },
   dayBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: RADIUS.md,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dayBadgeActive: { backgroundColor: COLORS.primary },
-  dayBadgeText: { color: COLORS.textMuted, fontWeight: '800', fontSize: 10 },
-  dayTitle: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '800' },
-  dayType: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', marginTop: 2, letterSpacing: 0.5 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.primary },
+  dayBadgeText: { ...TYPE.footnote, fontWeight: '600', color: COLORS.textSecondary },
+  dayTitle: { ...TYPE.body, color: COLORS.text },
+  dayType: { ...TYPE.caption, color: COLORS.textMuted, marginTop: 1 },
 
-  // Modal IA
-  genOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  genCard: {
-    backgroundColor: COLORS.card,
+  // Feuilles du bas
+  sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  sheetBacking: {
+    backgroundColor: 'rgba(18,20,28,0.85)',
     borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
-    padding: SPACING.lg,
+    overflow: 'hidden',
   },
-  genHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
-  genTitle: { color: COLORS.text, fontSize: 18, fontWeight: '900' },
-  genLabel: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    marginBottom: 8,
-    marginTop: SPACING.md,
+  sheet: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm },
+  grabber: {
+    alignSelf: 'center',
+    width: 36,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: COLORS.borderStrong,
+    marginBottom: SPACING.md,
   },
-  row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  chip: {
-    flex: 1,
-    minWidth: 90,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  chipText: { color: COLORS.textSecondary, fontWeight: '800', fontSize: 11, letterSpacing: 0.5 },
-  musclesWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  muscleChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.pill,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  genBtn: {
-    flexDirection: 'row',
-    gap: 8,
-    backgroundColor: COLORS.primary,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: SPACING.lg,
-  },
-  genBtnText: { color: '#08110D', fontWeight: '900', fontSize: 13, letterSpacing: 1 },
+  sheetTitle: { ...TYPE.title, color: COLORS.text },
+  sheetSub: { ...TYPE.callout, color: COLORS.textSecondary, marginTop: 4 },
+  daysLabel: { ...TYPE.headline, color: COLORS.text, marginBottom: SPACING.sm },
+  daysLabelMuted: { color: COLORS.textSecondary, fontWeight: '400' },
+  daysRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
 
-  secondaryBtn: {
-    flexDirection: 'row',
-    gap: 8,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryBtnText: { color: COLORS.text, fontWeight: '800', fontSize: 12, letterSpacing: 0.8 },
-
+  // Modal IA
+  genHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.md, marginBottom: SPACING.sm },
+  genLabel: { ...TYPE.overline, color: COLORS.textSecondary, marginBottom: SPACING.sm, marginTop: SPACING.lg },
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   intentInput: {
     backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.lg,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingTop: 12,
+    paddingBottom: 12,
     color: COLORS.text,
-    fontSize: 13,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    minHeight: 70,
+    fontSize: 15,
+    minHeight: 88,
     textAlignVertical: 'top',
   },
-  intentHint: { color: COLORS.textMuted, fontSize: 10, marginTop: 4, fontStyle: 'italic' },
+  intentHint: { ...TYPE.footnote, color: COLORS.textMuted, marginTop: 6 },
 
-  generatedTitle: { color: COLORS.text, fontSize: 22, fontWeight: '900', marginTop: 4 },
-  generatedFocus: { color: COLORS.primary, fontSize: 12, fontWeight: '700', marginTop: 4 },
-  generatedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.sm,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    marginBottom: 6,
-  },
+  generatedTitle: { ...TYPE.title, color: COLORS.text, marginTop: 4 },
+  generatedFocus: { ...TYPE.callout, color: COLORS.textSecondary, marginTop: 4 },
+  generatedList: { backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.sm },
+  generatedRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   thumbWrap: { width: 48, height: 48, borderRadius: RADIUS.md, overflow: 'hidden' },
-  generatedName: { color: COLORS.text, fontWeight: '800', fontSize: 13 },
-  generatedMuscles: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700' },
-  generatedMeta: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
+  generatedName: { ...TYPE.callout, fontWeight: '600', color: COLORS.text },
+  generatedMuscles: { ...TYPE.footnote, color: COLORS.textMuted },
+  generatedMeta: { ...TYPE.callout, color: COLORS.textSecondary, fontVariant: ['tabular-nums'] },
 });

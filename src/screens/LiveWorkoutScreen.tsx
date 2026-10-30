@@ -5,13 +5,12 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, RADIUS, SPACING } from '../theme';
+import { COLORS, RADIUS, SPACING, TYPE } from '../theme';
 import { Exercise, Set, Workout, WorkoutSession } from '../types';
 import { generateId, getWorkouts, saveWorkout } from '../utils/storage';
 import { findLastPerformance, findRecords, formatKg, suggestNext } from '../utils/progression';
@@ -20,6 +19,11 @@ import { findExerciseById, muscleFR } from '../services/exercises';
 import { AnimatedExerciseImage } from '../components/ExerciseCard';
 import MuscleMap from '../components/MuscleMap';
 import ExerciseDetailModal from '../components/ExerciseDetailModal';
+import { Glass, GlassCard } from '../components/glass';
+import { PressableScale } from '../components/ui';
+
+// Chiffre seul (sans l'unité) pour l'afficher en grand, l'unité à côté.
+const kgValue = (kg: number) => kg.toLocaleString('fr-CA');
 
 export default function LiveWorkoutScreen() {
   const navigation = useNavigation<any>();
@@ -172,238 +176,303 @@ export default function LiveWorkoutScreen() {
   };
 
   if (done) {
+    const setsDone = exercises.reduce((n, ex) => n + ex.sets.filter((st) => st.completed).length, 0);
     return (
-      <View style={[styles.doneRoot, { paddingTop: insets.top }]}>
-        <View style={styles.doneCard}>
-          <Ionicons name="trophy" size={64} color={COLORS.primary} />
-          <Text style={styles.doneTitle}>TERMINÉ !</Text>
-          <Text style={styles.doneSub}>Ton corps te remerciera.</Text>
-          {records.length > 0 && (
-            <View style={styles.recordBox}>
-              <Text style={styles.recordTitle}>Nouveau record</Text>
-              {records.map((r) => (
-                <Text key={r.name} style={styles.recordLine}>
-                  {r.name} · 1RM estimé {formatKg(r.e1rm)}
-                </Text>
-              ))}
-            </View>
-          )}
-          <View style={styles.xpPill}>
-            <Text style={styles.xpPillBig}>+250</Text>
-            <Text style={styles.xpPillSmall}>XP</Text>
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <StatusBar barStyle="light-content" />
+        <ScrollView
+          contentContainerStyle={[styles.doneScroll, { paddingBottom: insets.bottom + SPACING.xl }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.doneIcon}>
+            <Ionicons name="trophy-outline" size={40} color={COLORS.primary} />
           </View>
-          <TouchableOpacity style={styles.doneBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.doneBtnText}>RETOUR</Text>
-          </TouchableOpacity>
-        </View>
+          <Text style={styles.doneTitle}>Séance terminée</Text>
+          <Text style={styles.doneSub}>Ton corps te remerciera.</Text>
+
+          <GlassCard style={styles.doneStats}>
+            <View style={styles.doneStat}>
+              <Text style={styles.doneStatValue}>{formatTime(elapsed)}</Text>
+              <Text style={styles.doneStatLabel}>Durée</Text>
+            </View>
+            <View style={styles.vSep} />
+            <View style={styles.doneStat}>
+              <Text style={styles.doneStatValue}>{setsDone}</Text>
+              <Text style={styles.doneStatLabel}>Séries faites</Text>
+            </View>
+            <View style={styles.vSep} />
+            <View style={styles.doneStat}>
+              <Text style={styles.doneStatValue}>{totalEx}</Text>
+              <Text style={styles.doneStatLabel}>Exercices</Text>
+            </View>
+          </GlassCard>
+
+          {records.length > 0 && (
+            <Glass radius={RADIUS.xl} style={styles.recordBox}>
+              <View style={styles.recordHead}>
+                <Ionicons name="ribbon-outline" size={20} color={COLORS.primary} />
+                <Text style={styles.recordTitle}>
+                  {records.length > 1 ? 'Nouveaux records' : 'Nouveau record'}
+                </Text>
+              </View>
+              {records.map((r) => (
+                <View key={r.name}>
+                  <View style={styles.hairline} />
+                  <View style={styles.recordRow}>
+                    <Text style={styles.recordName} numberOfLines={1}>{r.name}</Text>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.recordValue}>
+                        {kgValue(r.e1rm)}
+                        <Text style={styles.recordUnit}> kg</Text>
+                      </Text>
+                      <Text style={styles.recordHint}>1RM estimé</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </Glass>
+          )}
+
+          <Text style={styles.xpLine}>+250 XP gagnés</Text>
+
+          <View style={{ alignSelf: 'stretch', marginTop: SPACING.sm }}>
+            <PressableScale style={styles.primaryBtn} onPress={() => navigation.goBack()} accessibilityRole="button">
+              <Text style={styles.primaryBtnText}>Fermer</Text>
+            </PressableScale>
+          </View>
+        </ScrollView>
       </View>
     );
   }
+
+  const cat = currentSrc.exerciseId ? findExerciseById(currentSrc.exerciseId) : undefined;
+  const isLast = currentIdx === totalEx - 1;
+  const restActive = rest !== null && rest > 0;
+  const restRatio = restActive && currentSrc.rest > 0 ? Math.min(1, (rest as number) / currentSrc.rest) : 0;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" />
 
-      {/* Header */}
+      {/* En-tête */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
-          <Ionicons name="close" size={24} color={COLORS.text} />
-        </TouchableOpacity>
-        <View style={{ flex: 1, paddingHorizontal: SPACING.md }}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{session.title.toUpperCase()}</Text>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progress}%` }]} />
-          </View>
+        <PressableScale onPress={() => navigation.goBack()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Quitter la séance">
+          <Glass radius={20} style={styles.iconBtn}>
+            <Ionicons name="close" size={20} color={COLORS.text} />
+          </Glass>
+        </PressableScale>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle} numberOfLines={1}>{session.title}</Text>
+          <Text style={styles.headerSub}>
+            Exercice {currentIdx + 1} sur {totalEx}
+          </Text>
         </View>
-        <View style={styles.timer}>
-          <Ionicons name="time-outline" size={12} color={COLORS.accent} />
+        <Glass radius={RADIUS.pill} style={styles.timer}>
           <Text style={styles.timerText}>{formatTime(elapsed)}</Text>
-        </View>
+        </Glass>
+      </View>
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${progress}%` }]} />
       </View>
 
-      {/* Rest banner */}
-      {rest !== null && rest > 0 && (
-        <View style={styles.restBanner}>
-          <Ionicons name="timer-outline" size={20} color={COLORS.primary} />
-          <Text style={styles.restText}>REPOS {rest}s</Text>
-          <TouchableOpacity onPress={() => setRest(null)}>
-            <Text style={styles.restSkip}>PASSER</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Repos : toujours visible, en gros */}
+      {restActive && (
+        <Glass radius={RADIUS.xl} tint={COLORS.primary} style={styles.restCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.restLabel}>Repos</Text>
+            <Text style={styles.restValue}>{formatTime(rest as number)}</Text>
+          </View>
+          <PressableScale onPress={() => setRest(null)} accessibilityRole="button">
+            <Glass radius={RADIUS.pill} style={styles.restSkip}>
+              <Text style={styles.restSkipText}>Passer</Text>
+            </Glass>
+          </PressableScale>
+          <View style={styles.restTrack}>
+            <View style={[styles.restFill, { width: `${restRatio * 100}%` }]} />
+          </View>
+        </Glass>
       )}
 
       <ScrollView
-        contentContainerStyle={{ padding: SPACING.md, paddingBottom: 140 + insets.bottom }}
+        contentContainerStyle={{ paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, paddingBottom: 130 + insets.bottom }}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {(() => {
-          const cat = currentSrc.exerciseId ? findExerciseById(currentSrc.exerciseId) : undefined;
-          if (cat) {
-            return (
-              <View style={styles.mediaBlock}>
-                <TouchableOpacity
-                  style={styles.mediaWrap}
-                  onPress={() => setShowDetail(true)}
-                  activeOpacity={0.9}
-                >
-                  <AnimatedExerciseImage exercise={cat} height={200} rounded />
-                  <View style={styles.mediaInfoBadge}>
-                    <Ionicons name="information-circle" size={18} color={COLORS.text} />
-                    <Text style={styles.mediaInfoText}>DÉTAIL</Text>
-                  </View>
-                </TouchableOpacity>
-                <View style={styles.musclesPreview}>
-                  <View style={styles.muscleMapSide}>
-                    <MuscleMap
-                      primaryMuscles={cat.primaryMuscles}
-                      secondaryMuscles={cat.secondaryMuscles}
-                      size={70}
-                    />
-                  </View>
-                  <View style={styles.musclePillsCol}>
-                    <Text style={styles.musclesHeading}>MUSCLES TRAVAILLÉS</Text>
-                    <View style={styles.musclePillsRow}>
-                      {cat.primaryMuscles.map((m) => (
-                        <View key={`p-${m}`} style={[styles.musclePill, styles.musclePillPrimary]}>
-                          <Text style={styles.musclePillPrimaryText}>{muscleFR(m)}</Text>
-                        </View>
-                      ))}
-                      {cat.secondaryMuscles.slice(0, 3).map((m) => (
-                        <View key={`s-${m}`} style={[styles.musclePill, styles.musclePillSecondary]}>
-                          <Text style={styles.musclePillSecondaryText}>{muscleFR(m)}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                </View>
-              </View>
-            );
-          }
-          return null;
-        })()}
-
         <Text style={styles.exTitle}>{currentSrc.name}</Text>
         <Text style={styles.exMeta}>
-          {currentSrc.sets} SÉRIES · {currentSrc.reps} REPS · {currentSrc.rest}s REPOS
+          {currentSrc.sets} séries · {currentSrc.reps} reps · {currentSrc.rest} s de repos
         </Text>
 
-        {/* Double progression */}
-        {last && (
-          <View style={styles.progCard}>
-            <Text style={styles.progLabel}>Dernière fois</Text>
-            <Text style={styles.progText}>
-              {formatKg(Math.max(...last.sets.map((x) => x.weight)))} × {last.sets.map((x) => x.reps).join(', ')}
-            </Text>
-            {suggestion && (
-              <>
-                <Text style={[styles.progLabel, { marginTop: SPACING.sm }]}>
-                  {suggestion.bumped ? 'Charge en hausse aujourd\'hui' : 'Aujourd\'hui'}
-                </Text>
-                <View style={styles.progRow}>
-                  <Text style={[styles.progText, suggestion.bumped && { color: COLORS.primary }]}>
-                    {formatKg(suggestion.weight)}, vise {suggestion.reps.join(' · ')}
-                  </Text>
-                  <TouchableOpacity onPress={fillSuggestion} style={styles.progBtn}>
-                    <Text style={styles.progBtnText}>Remplir</Text>
-                  </TouchableOpacity>
+        {cat && (
+          <PressableScale onPress={() => setShowDetail(true)} scaleTo={0.98} accessibilityRole="button" accessibilityLabel="Voir le détail de l'exercice">
+            <Glass radius={RADIUS.xl} style={styles.mediaCard}>
+              <AnimatedExerciseImage exercise={cat} height={190} rounded={false} />
+              <View style={styles.musclesRow}>
+                <MuscleMap primaryMuscles={cat.primaryMuscles} secondaryMuscles={cat.secondaryMuscles} size={34} />
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={styles.musclesHeading}>Muscles travaillés</Text>
+                  <View style={styles.musclePillsRow}>
+                    {cat.primaryMuscles.map((m) => (
+                      <View key={`p-${m}`} style={[styles.musclePill, styles.musclePillPrimary]}>
+                        <Text style={styles.musclePillPrimaryText}>{muscleFR(m)}</Text>
+                      </View>
+                    ))}
+                    {cat.secondaryMuscles.slice(0, 3).map((m) => (
+                      <View key={`s-${m}`} style={styles.musclePill}>
+                        <Text style={styles.musclePillSecondaryText}>{muscleFR(m)}</Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
-              </>
-            )}
-          </View>
+                <Ionicons name="information-circle-outline" size={22} color={COLORS.textSecondary} />
+              </View>
+            </Glass>
+          </PressableScale>
         )}
 
-        {/* Sets */}
-        <View style={{ marginTop: SPACING.lg }}>
-          {currentEx.sets.map((set, i) => (
-            <View key={set.id} style={[styles.setRow, set.completed && styles.setRowDone]}>
-              <View style={[styles.setNum, set.completed && styles.setNumDone]}>
-                <Text style={[styles.setNumText, set.completed && { color: '#08110D' }]}>
-                  {i + 1}
+        {/* Double progression : dernière fois / aujourd'hui */}
+        {last && (
+          <GlassCard style={styles.progCard}>
+            <View style={styles.progCols}>
+              <View style={styles.progCol}>
+                <Text style={styles.progLabel}>Dernière fois</Text>
+                <Text style={styles.progBig}>
+                  {kgValue(Math.max(...last.sets.map((x) => x.weight)))}
+                  <Text style={styles.progUnit}> kg</Text>
                 </Text>
+                <Text style={styles.progReps}>× {last.sets.map((x) => x.reps).join(', ')}</Text>
               </View>
-              <View style={styles.setInputWrap}>
-                <Text style={styles.setInputLabel}>POIDS</Text>
+              {suggestion && (
+                <>
+                  <View style={styles.vSep} />
+                  <View style={styles.progCol}>
+                    <Text style={styles.progLabel}>
+                      {suggestion.bumped ? 'Aujourd\'hui, charge en hausse' : 'Aujourd\'hui'}
+                    </Text>
+                    <Text style={[styles.progBig, suggestion.bumped && { color: COLORS.primary }]}>
+                      {kgValue(suggestion.weight)}
+                      <Text style={styles.progUnit}> kg</Text>
+                    </Text>
+                    <Text style={styles.progReps}>vise {suggestion.reps.join(' · ')}</Text>
+                  </View>
+                </>
+              )}
+            </View>
+            {suggestion && (
+              <PressableScale onPress={fillSuggestion} accessibilityRole="button">
+                <Glass radius={RADIUS.pill} style={styles.fillBtn}>
+                  <Ionicons name="arrow-down-circle-outline" size={18} color={COLORS.primary} />
+                  <Text style={styles.fillBtnText}>Remplir {formatKg(suggestion.weight)}</Text>
+                </Glass>
+              </PressableScale>
+            )}
+          </GlassCard>
+        )}
+
+        {/* Séries */}
+        <Glass radius={RADIUS.xl} style={styles.setsCard}>
+          <View style={styles.setsHead}>
+            <Text style={[styles.setsHeadText, styles.colNum]}>Série</Text>
+            <Text style={[styles.setsHeadText, styles.colInput]}>Kg</Text>
+            <Text style={[styles.setsHeadText, styles.colInput]}>Reps</Text>
+            <View style={styles.colCheck} />
+          </View>
+          {currentEx.sets.map((set, i) => (
+            <View key={set.id}>
+              <View style={styles.hairline} />
+              <View style={styles.setRow}>
+                <Text style={[styles.setNum, styles.colNum, set.completed && { color: COLORS.primary }]}>{i + 1}</Text>
                 <TextInput
-                  style={styles.setInput}
+                  style={[styles.setInput, styles.colInput, set.completed && styles.setInputDone]}
                   keyboardType="decimal-pad"
-                  placeholder={suggestion ? String(suggestion.weight) : 'kg'}
+                  placeholder={suggestion ? kgValue(suggestion.weight) : 'kg'}
                   placeholderTextColor={COLORS.textMuted}
                   value={weightDrafts[set.id] ?? (set.weight ? String(set.weight) : '')}
                   onChangeText={(v) => updateSet(i, 'weight', v)}
+                  selectTextOnFocus
+                  accessibilityLabel={`Charge de la série ${i + 1}`}
                 />
-              </View>
-              <View style={styles.setInputWrap}>
-                <Text style={styles.setInputLabel}>REPS</Text>
                 <TextInput
-                  style={styles.setInput}
+                  style={[styles.setInput, styles.colInput, set.completed && styles.setInputDone]}
                   keyboardType="numeric"
                   placeholder={suggestion ? String(suggestion.reps[i] ?? currentSrc.reps) : currentSrc.reps}
                   placeholderTextColor={COLORS.textMuted}
                   value={set.reps ? String(set.reps) : ''}
                   onChangeText={(v) => updateSet(i, 'reps', v)}
+                  selectTextOnFocus
+                  accessibilityLabel={`Répétitions de la série ${i + 1}`}
                 />
+                <View style={styles.colCheck}>
+                  <PressableScale
+                    onPress={() => toggleSet(i)}
+                    style={[styles.checkBtn, set.completed && styles.checkBtnDone]}
+                    accessibilityRole="button"
+                    accessibilityState={{ checked: set.completed }}
+                    accessibilityLabel={`Valider la série ${i + 1}`}
+                  >
+                    <Ionicons
+                      name="checkmark"
+                      size={22}
+                      color={set.completed ? COLORS.onPrimary : COLORS.textMuted}
+                    />
+                  </PressableScale>
+                </View>
               </View>
-              <TouchableOpacity
-                style={[styles.checkBtn, set.completed && styles.checkBtnDone]}
-                onPress={() => toggleSet(i)}
-              >
-                <Ionicons
-                  name={set.completed ? 'checkmark' : 'ellipse-outline'}
-                  size={26}
-                  color={set.completed ? '#08110D' : COLORS.textSecondary}
-                />
-              </TouchableOpacity>
             </View>
           ))}
-        </View>
+        </Glass>
 
         {currentSrc.execution && (
-          <View style={styles.tipCard}>
-            <Ionicons name="bulb" size={18} color={COLORS.accent} />
+          <GlassCard style={styles.tipCard}>
+            <Ionicons name="bulb-outline" size={20} color={COLORS.textSecondary} />
             <Text style={styles.tipText}>{currentSrc.execution}</Text>
-          </View>
+          </GlassCard>
         )}
       </ScrollView>
 
-      {/* Footer */}
+      {/* Barre du bas */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + SPACING.sm }]}>
-        <TouchableOpacity
-          style={styles.footerSide}
+        <PressableScale
           onPress={prev}
           disabled={currentIdx === 0}
+          style={currentIdx === 0 && { opacity: 0.4 }}
+          accessibilityRole="button"
+          accessibilityLabel="Exercice précédent"
         >
-          <Ionicons
-            name="chevron-back"
-            size={22}
-            color={currentIdx === 0 ? COLORS.textMuted : COLORS.text}
-          />
-        </TouchableOpacity>
+          <Glass radius={28} style={styles.footerSide}>
+            <Ionicons name="chevron-back" size={22} color={COLORS.text} />
+          </Glass>
+        </PressableScale>
 
-        {currentIdx === totalEx - 1 ? (
-          <TouchableOpacity style={styles.footerMainFinish} onPress={finish}>
-            <Text style={styles.footerMainFinishText}>TERMINER 🔥</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.footerMain} onPress={next}>
-            <Text style={styles.footerMainText}>EXERCICE SUIVANT</Text>
-            <Ionicons name="chevron-forward" size={18} color={COLORS.text} />
-          </TouchableOpacity>
-        )}
+        <View style={styles.footerMain}>
+          {isLast ? (
+            <PressableScale style={styles.primaryBtn} onPress={finish} accessibilityRole="button">
+              <Text style={styles.primaryBtnText}>Terminer la séance</Text>
+            </PressableScale>
+          ) : (
+            <PressableScale onPress={next} accessibilityRole="button">
+              <Glass radius={RADIUS.pill} style={styles.footerNext}>
+                <Text style={styles.footerNextText}>Exercice suivant</Text>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.text} />
+              </Glass>
+            </PressableScale>
+          )}
+        </View>
 
-        <TouchableOpacity
-          style={styles.footerSide}
+        <PressableScale
           onPress={next}
-          disabled={currentIdx === totalEx - 1}
+          disabled={isLast}
+          style={isLast && { opacity: 0.4 }}
+          accessibilityRole="button"
+          accessibilityLabel="Exercice suivant"
         >
-          <Ionicons
-            name="chevron-forward"
-            size={22}
-            color={currentIdx === totalEx - 1 ? COLORS.textMuted : COLORS.text}
-          />
-        </TouchableOpacity>
+          <Glass radius={28} style={styles.footerSide}>
+            <Ionicons name="chevron-forward" size={22} color={COLORS.text} />
+          </Glass>
+        </PressableScale>
       </View>
 
-      {/* Détail d'exercice depuis la GIF */}
+      {/* Détail d'exercice depuis l'image */}
       <ExerciseDetailModal
         visible={showDetail}
         onClose={() => setShowDetail(false)}
@@ -415,267 +484,197 @@ export default function LiveWorkoutScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
-  progCard: { marginTop: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.lg, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
-  progLabel: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
-  progText: { color: COLORS.text, fontSize: 16, fontWeight: '700', marginTop: 2 },
-  progRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
-  progBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.pill, backgroundColor: COLORS.primarySoft },
-  progBtnText: { color: COLORS.primaryLight, fontWeight: '800', fontSize: 13 },
-  recordBox: { marginTop: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.lg, backgroundColor: COLORS.primarySoft, alignSelf: 'stretch' },
-  recordTitle: { color: COLORS.primaryLight, fontWeight: '800', fontSize: 14, marginBottom: 4 },
-  recordLine: { color: COLORS.text, fontSize: 13, fontWeight: '600', marginTop: 2 },
+
+  // En-tête
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    gap: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.md,
+    gap: SPACING.md,
   },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: COLORS.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: { color: COLORS.textMuted, fontSize: 11, fontWeight: '800', letterSpacing: 1.2 },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerCenter: { flex: 1 },
+  headerTitle: { ...TYPE.headline, color: COLORS.text },
+  headerSub: { ...TYPE.caption, color: COLORS.textSecondary, marginTop: 1 },
+  timer: { paddingHorizontal: 14, height: 40, justifyContent: 'center' },
+  timerText: { ...TYPE.number, fontSize: 20, letterSpacing: -0.4, color: COLORS.text },
   progressTrack: {
-    height: 4,
+    height: 3,
+    marginHorizontal: SPACING.lg,
     backgroundColor: COLORS.surface,
     borderRadius: 2,
     overflow: 'hidden',
-    marginTop: 4,
   },
-  progressFill: { height: '100%', backgroundColor: COLORS.primary },
-  timer: {
+  progressFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 2 },
+
+  // Repos
+  restCard: {
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.lg,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+  },
+  restLabel: { ...TYPE.callout, color: COLORS.textSecondary },
+  restValue: { ...TYPE.number, fontSize: 56, lineHeight: 62, letterSpacing: -1.5, color: COLORS.text },
+  restSkip: { paddingHorizontal: SPACING.lg, paddingVertical: 12 },
+  restSkipText: { color: COLORS.text, fontSize: 17, fontWeight: '600' },
+  restTrack: {
+    position: 'absolute',
+    left: SPACING.lg,
+    right: SPACING.lg,
+    bottom: 12,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.surface,
+    overflow: 'hidden',
+  },
+  restFill: { height: '100%', borderRadius: 2, backgroundColor: COLORS.primary },
+
+  // Exercice
+  exTitle: { ...TYPE.largeTitle, color: COLORS.text },
+  exMeta: { ...TYPE.callout, color: COLORS.textSecondary, marginTop: 4, marginBottom: SPACING.lg },
+
+  mediaCard: { marginBottom: SPACING.md },
+  musclesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 12,
+  },
+  musclesHeading: { ...TYPE.footnote, color: COLORS.textMuted },
+  musclePillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  musclePill: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: `${COLORS.accent}22`,
-    borderWidth: 1,
-    borderColor: `${COLORS.accent}44`,
-  },
-  timerText: { color: COLORS.accent, fontWeight: '800', fontSize: 11 },
-
-  restBanner: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'center',
-    backgroundColor: `${COLORS.primary}22`,
-    borderColor: `${COLORS.primary}44`,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-  },
-  restText: { color: COLORS.primary, fontWeight: '900', fontSize: 14, letterSpacing: 1, flex: 1 },
-  restSkip: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
-
-  mediaBlock: { marginBottom: SPACING.md },
-  mediaWrap: {
-    width: '100%',
-    borderRadius: RADIUS.lg,
-    overflow: 'hidden',
-    backgroundColor: COLORS.surface,
-    position: 'relative',
-  },
-  mediaInfoBadge: {
-    position: 'absolute',
-    bottom: SPACING.sm,
-    right: SPACING.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
     borderRadius: RADIUS.pill,
-    backgroundColor: 'rgba(8, 17, 13, 0.75)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  mediaInfoText: { color: COLORS.text, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
-  musclesPreview: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-    marginTop: SPACING.sm,
-    padding: SPACING.sm,
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-  },
-  muscleMapSide: { width: 140, alignItems: 'center' },
-  musclePillsCol: { flex: 1, gap: 6 },
-  musclesHeading: { color: COLORS.textMuted, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
-  musclePillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  musclePill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.pill,
-    borderWidth: 1,
-  },
-  musclePillPrimary: { backgroundColor: `${COLORS.primary}22`, borderColor: COLORS.primary },
-  musclePillSecondary: { backgroundColor: COLORS.surface, borderColor: COLORS.border },
-  musclePillPrimaryText: { color: COLORS.primary, fontSize: 10, fontWeight: '800' },
-  musclePillSecondaryText: { color: COLORS.textSecondary, fontSize: 10, fontWeight: '700' },
-
-  exTitle: {
-    color: COLORS.text,
-    fontSize: 28,
-    fontWeight: '900',
-    textAlign: 'center',
-    letterSpacing: -0.5,
-    marginTop: SPACING.md,
-  },
-  exMeta: {
-    color: COLORS.textMuted,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    textAlign: 'center',
-    marginTop: 6,
-  },
-
-  setRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: COLORS.card,
-    padding: SPACING.sm,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 8,
-  },
-  setRowDone: {
-    borderColor: COLORS.primary,
-    backgroundColor: `${COLORS.primary}11`,
-  },
-  setNum: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
     backgroundColor: COLORS.surface,
+  },
+  musclePillPrimary: { backgroundColor: COLORS.primarySoft },
+  musclePillPrimaryText: { ...TYPE.footnote, color: COLORS.primaryLight },
+  musclePillSecondaryText: { ...TYPE.footnote, color: COLORS.textSecondary },
+
+  // Double progression
+  progCard: { marginBottom: SPACING.md, gap: SPACING.md },
+  progCols: { flexDirection: 'row', alignItems: 'stretch' },
+  progCol: { flex: 1, paddingRight: SPACING.sm },
+  progLabel: { ...TYPE.footnote, color: COLORS.textMuted },
+  progBig: { ...TYPE.number, fontSize: 32, lineHeight: 38, color: COLORS.text, marginTop: 4 },
+  progUnit: { fontSize: 17, fontWeight: '600', letterSpacing: 0, color: COLORS.textSecondary },
+  progReps: { ...TYPE.callout, color: COLORS.textSecondary, marginTop: 2, fontVariant: ['tabular-nums'] },
+  vSep: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: 'stretch',
+    backgroundColor: COLORS.border,
+    marginHorizontal: SPACING.md,
+  },
+  fillBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
   },
-  setNumDone: { backgroundColor: COLORS.primary },
-  setNumText: { color: COLORS.textSecondary, fontWeight: '900', fontSize: 16 },
-  setInputWrap: { flex: 1, position: 'relative' },
-  setInputLabel: {
-    position: 'absolute',
-    top: 4,
-    left: 8,
-    color: COLORS.textMuted,
-    fontSize: 8,
-    fontWeight: '800',
-    letterSpacing: 1,
-    zIndex: 2,
-  },
+  fillBtnText: { color: COLORS.primary, fontSize: 17, fontWeight: '600' },
+
+  // Séries : tableau groupé
+  setsCard: { paddingHorizontal: SPACING.md, paddingBottom: 4 },
+  setsHead: { flexDirection: 'row', alignItems: 'center', paddingTop: 14, paddingBottom: 10 },
+  setsHeadText: { ...TYPE.footnote, color: COLORS.textMuted, textAlign: 'center' },
+  colNum: { width: 48, textAlign: 'center' },
+  colInput: { flex: 1, marginHorizontal: 5 },
+  colCheck: { width: 56, alignItems: 'flex-end' },
+  hairline: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
+  setRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+  setNum: { ...TYPE.number, fontSize: 22, color: COLORS.textSecondary },
   setInput: {
-    height: 48,
+    height: 54,
     backgroundColor: COLORS.surface,
-    borderRadius: 10,
+    borderRadius: RADIUS.md,
     color: COLORS.text,
     textAlign: 'center',
-    fontWeight: '900',
-    fontSize: 16,
-    paddingTop: 14,
+    fontSize: 26,
+    fontWeight: '700',
+    letterSpacing: -0.6,
+    fontVariant: ['tabular-nums'],
+    paddingVertical: 0,
   },
+  setInputDone: { color: COLORS.textSecondary, backgroundColor: 'transparent' },
   checkBtn: {
     width: 48,
     height: 48,
-    borderRadius: 12,
-    backgroundColor: COLORS.surface,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: COLORS.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkBtnDone: { backgroundColor: COLORS.primary },
+  checkBtnDone: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
 
-  tipCard: {
-    flexDirection: 'row',
-    gap: 10,
-    backgroundColor: COLORS.card,
-    padding: SPACING.md,
-    borderRadius: RADIUS.md,
-    marginTop: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  tipText: { flex: 1, color: COLORS.textSecondary, fontSize: 13, lineHeight: 18 },
+  tipCard: { flexDirection: 'row', gap: 12, marginTop: SPACING.md },
+  tipText: { ...TYPE.body, fontSize: 15, flex: 1, color: COLORS.textSecondary, lineHeight: 21 },
 
+  // Barre du bas
   footer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     flexDirection: 'row',
-    gap: 8,
-    padding: SPACING.md,
-    backgroundColor: COLORS.background,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
   },
-  footerSide: {
-    width: 56,
+  footerSide: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
+  footerMain: { flex: 1 },
+  footerNext: {
     height: 56,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  footerMain: {
-    flex: 1,
     flexDirection: 'row',
-    gap: 8,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.md,
+    gap: 6,
   },
-  footerMainText: { color: COLORS.text, fontWeight: '900', fontSize: 13, letterSpacing: 1 },
-  footerMainFinish: {
-    flex: 1,
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: SPACING.md,
-  },
-  footerMainFinishText: { color: '#08110D', fontWeight: '900', fontSize: 14, letterSpacing: 1 },
+  footerNextText: { color: COLORS.text, fontSize: 17, fontWeight: '600' },
 
-  doneRoot: { flex: 1, backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
-  doneCard: { alignItems: 'center', gap: SPACING.md, maxWidth: 320 },
-  doneTitle: { color: COLORS.text, fontSize: 44, fontWeight: '900', letterSpacing: -0.5 },
-  doneSub: { color: COLORS.textMuted, fontSize: 12, letterSpacing: 1.5, fontWeight: '700' },
-  xpPill: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-    backgroundColor: COLORS.card,
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.xl,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    marginTop: SPACING.md,
-  },
-  xpPillBig: { color: COLORS.primary, fontSize: 36, fontWeight: '900' },
-  xpPillSmall: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
-  doneBtn: {
-    marginTop: SPACING.md,
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.lg,
+  primaryBtn: {
+    height: 56,
     alignSelf: 'stretch',
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  doneBtnText: { color: '#08110D', fontWeight: '900', fontSize: 14, letterSpacing: 1 },
+  primaryBtnText: { color: COLORS.onPrimary, fontSize: 17, fontWeight: '600' },
+
+  // Fin de séance
+  doneScroll: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.lg, gap: SPACING.md },
+  doneIcon: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  doneTitle: { ...TYPE.largeTitle, color: COLORS.text, marginTop: SPACING.sm },
+  doneSub: { ...TYPE.body, color: COLORS.textSecondary, marginTop: -8 },
+  doneStats: { flexDirection: 'row', alignSelf: 'stretch', marginTop: SPACING.md },
+  doneStat: { flex: 1, alignItems: 'center' },
+  doneStatValue: { ...TYPE.number, fontSize: 26, color: COLORS.text },
+  doneStatLabel: { ...TYPE.footnote, color: COLORS.textMuted, marginTop: 2 },
+  recordBox: { alignSelf: 'stretch', paddingHorizontal: SPACING.lg, paddingBottom: 6 },
+  recordHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14 },
+  recordTitle: { ...TYPE.headline, color: COLORS.text },
+  recordRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.md, paddingVertical: 12 },
+  recordName: { ...TYPE.body, color: COLORS.text, flex: 1 },
+  recordValue: { ...TYPE.number, fontSize: 22, color: COLORS.text },
+  recordUnit: { fontSize: 15, fontWeight: '500', letterSpacing: 0, color: COLORS.textSecondary },
+  recordHint: { ...TYPE.footnote, color: COLORS.textMuted },
+  xpLine: { ...TYPE.caption, color: COLORS.textMuted, marginTop: SPACING.sm },
 });

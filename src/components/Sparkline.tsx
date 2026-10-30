@@ -1,20 +1,21 @@
 import React from 'react';
 import { View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
+import { COLORS } from '../theme';
 
 interface Props {
   data: number[];
   color: string;
   width: number;
   height: number;
-  /** Affiche un area-fill sous la courbe avec un gradient discret */
+  /** Affiche un remplissage discret sous la courbe */
   filled?: boolean;
-  /** Affiche un dot sur le dernier point */
+  /** Affiche un point sur la dernière valeur */
   showLastDot?: boolean;
   strokeWidth?: number;
 }
 
-// Tracé en spline (Catmull-Rom approximé) → courbe plus douce qu'un polyline brut.
+// Tracé lissé (Catmull-Rom approché) : courbe plus douce qu'une simple polyligne.
 function smoothPath(points: { x: number; y: number }[]): string {
   if (points.length === 0) return '';
   if (points.length === 1) return `M ${points[0].x},${points[0].y}`;
@@ -51,8 +52,9 @@ export default function Sparkline({
   const max = Math.max(...data);
   const range = Math.max(1, max - min);
 
-  const padX = strokeWidth;
-  const padY = strokeWidth + 2;
+  const dotR = showLastDot ? 3.5 : 0;
+  const padX = Math.max(strokeWidth, dotR + 1);
+  const padY = Math.max(strokeWidth + 1, dotR + 1);
   const usableW = width - padX * 2;
   const usableH = height - padY * 2;
 
@@ -67,25 +69,32 @@ export default function Sparkline({
       ? `${linePath} L ${points[points.length - 1].x},${height} L ${points[0].x},${height} Z`
       : '';
 
-  const gradientId = `spark-${color.replace('#', '')}`;
+  const gradientId = `spark-${color.replace(/[^a-zA-Z0-9]/g, '')}`;
   const last = points[points.length - 1];
 
   return (
     <Svg width={width} height={height}>
       <Defs>
         <LinearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={color} stopOpacity={0.4} />
+          <Stop offset="0" stopColor={color} stopOpacity={0.22} />
           <Stop offset="1" stopColor={color} stopOpacity={0} />
         </LinearGradient>
       </Defs>
 
-      {filled && fillPath && <Path d={fillPath} fill={`url(#${gradientId})`} />}
-      <Path d={linePath} stroke={color} strokeWidth={strokeWidth} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      {filled && fillPath ? <Path d={fillPath} fill={`url(#${gradientId})`} /> : null}
+      <Path
+        d={linePath}
+        stroke={color}
+        strokeWidth={strokeWidth}
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
 
       {showLastDot && (
         <>
-          <Circle cx={last.x} cy={last.y} r={4} fill="#0F0F1A" />
-          <Circle cx={last.x} cy={last.y} r={3} fill={color} />
+          <Circle cx={last.x} cy={last.y} r={dotR + 1.5} fill={COLORS.backgroundSolid} />
+          <Circle cx={last.x} cy={last.y} r={dotR} fill={color} />
         </>
       )}
     </Svg>

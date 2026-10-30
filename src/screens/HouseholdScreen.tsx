@@ -19,6 +19,7 @@ import { ActivityLevel, AllergenKey, GoalType, HouseholdMember } from '../types'
 import { ACTIVITY_CONFIG } from '../utils/health';
 import { ALLERGENS, ALLERGEN_BY_KEY } from '../utils/allergens';
 import { OWNER_ID, computeTargetsForGoal, newHouseholdMember } from '../utils/storage';
+import { AppBackground, Glass } from '../components/glass';
 import {
   AnimatedNumber,
   Card,
@@ -58,7 +59,7 @@ const CUISINES = [
   'Mexicaine',
 ];
 
-const AVATAR_TINTS = [COLORS.primary, COLORS.purple, COLORS.blue, COLORS.accent];
+const HAIRLINE = StyleSheet.hairlineWidth;
 
 export default function HouseholdScreen() {
   const insets = useSafeAreaInsets();
@@ -95,20 +96,26 @@ export default function HouseholdScreen() {
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <PressableScale onPress={() => navigation.goBack()} style={styles.iconBtn} accessibilityLabel="Retour">
-          <Ionicons name="chevron-back" size={22} color={COLORS.text} />
+        <PressableScale onPress={() => navigation.goBack()} accessibilityLabel="Retour" accessibilityRole="button">
+          <Glass radius={20} interactive style={styles.iconBtn}>
+            <Ionicons name="chevron-back" size={22} color={COLORS.text} />
+          </Glass>
         </PressableScale>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: insets.bottom + 60 }} showsVerticalScrollIndicator={false}>
-        <Text style={styles.display}>Foyer</Text>
-        <Text style={styles.lead}>Qui mange à ta table. Chaque personne garde ses cibles, et ses allergies bloquent les recettes.</Text>
+      <ScrollView
+        contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingTop: SPACING.xs, paddingBottom: insets.bottom + 60 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.titleBlock}>
+          <Text style={styles.display}>Foyer</Text>
+          <Text style={styles.lead}>Qui mange à ta table. Chaque personne garde ses cibles, et ses allergies bloquent les recettes.</Text>
+        </View>
 
-        {members.map((m, i) => (
+        {members.map((m) => (
           <MemberCard
             key={m.id}
             member={m}
-            tint={AVATAR_TINTS[i % AVATAR_TINTS.length]}
             isOwner={m.id === OWNER_ID}
             onPress={() => {
               playFx('click');
@@ -118,19 +125,22 @@ export default function HouseholdScreen() {
         ))}
 
         <PressableScale
-          style={styles.addCard}
+          style={{ marginTop: SPACING.md }}
           onPress={() => {
             playFx('click');
             setEditing(newHouseholdMember());
           }}
           accessibilityLabel="Ajouter une personne"
+          accessibilityRole="button"
         >
-          <Ionicons name="person-add-outline" size={20} color={COLORS.primaryLight} />
-          <Text style={styles.addText}>Ajouter une personne</Text>
+          <Glass radius={RADIUS.pill} interactive style={styles.secondaryBtn}>
+            <Ionicons name="person-add-outline" size={20} color={COLORS.text} />
+            <Text style={styles.secondaryText}>Ajouter une personne</Text>
+          </Glass>
         </PressableScale>
 
         <View style={styles.note}>
-          <Ionicons name="shield-checkmark-outline" size={18} color={COLORS.textSecondary} />
+          <Ionicons name="lock-closed-outline" size={16} color={COLORS.danger} style={{ marginTop: 1 }} />
           <Text style={styles.noteText}>
             Une allergie est une exclusion stricte : toute recette qui la contient est écartée avant de s'afficher, même si l'IA se trompe. Ces données restent sur ce téléphone.
           </Text>
@@ -161,24 +171,28 @@ export default function HouseholdScreen() {
 // ── Carte d'une personne ───────────────────────────────────────────────────
 const MemberCard: React.FC<{
   member: HouseholdMember;
-  tint: string;
   isOwner: boolean;
   onPress: () => void;
-}> = ({ member, tint, isOwner, onPress }) => {
+}> = ({ member, isOwner, onPress }) => {
   const strict = [
     ...(member.allergens ?? []).map((k) => ALLERGEN_BY_KEY[k]?.label).filter(Boolean),
     ...(member.strictExclusions ?? []),
   ] as string[];
 
   return (
-    <PressableScale onPress={onPress} scaleTo={0.98} style={{ marginTop: SPACING.md }}>
+    <PressableScale onPress={onPress} scaleTo={0.98} style={{ marginTop: SPACING.md }} accessibilityRole="button">
       <Card>
         <View style={styles.cardTop}>
-          <View style={[styles.avatar, { backgroundColor: tint + '22', borderColor: tint }]}>
-            <Text style={[styles.avatarText, { color: tint }]}>{(member.name || '?').charAt(0).toUpperCase()}</Text>
+          <View style={[styles.avatar, isOwner && { backgroundColor: COLORS.primarySoft }]}>
+            <Text style={[styles.avatarText, isOwner && { color: COLORS.primary }]}>
+              {(member.name || '?').charAt(0).toUpperCase()}
+            </Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.name}>{member.name || 'Sans nom'}{isOwner ? '  ·  toi' : ''}</Text>
+            <Text style={styles.name}>
+              {member.name || 'Sans nom'}
+              {isOwner ? <Text style={styles.nameMuted}>  ·  toi</Text> : null}
+            </Text>
             <Text style={styles.goal}>{GOAL_LABEL[member.goal]}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
@@ -191,10 +205,16 @@ const MemberCard: React.FC<{
         </View>
 
         {strict.length > 0 && (
-          <View style={styles.chipsRow}>
-            {strict.map((s) => (
-              <Chip key={s} label={s} tone="danger" active />
-            ))}
+          <View style={styles.strictBlock}>
+            <View style={styles.strictHead}>
+              <Ionicons name="lock-closed" size={13} color={COLORS.danger} />
+              <Text style={styles.strictLabel}>Exclusions strictes</Text>
+            </View>
+            <View style={styles.chipsRow}>
+              {strict.map((s) => (
+                <Chip key={s} label={s} tone="danger" active />
+              ))}
+            </View>
           </View>
         )}
       </Card>
@@ -206,6 +226,17 @@ const Stat: React.FC<{ value: number; unit: string }> = ({ value, unit }) => (
   <View style={{ flex: 1 }}>
     <AnimatedNumber value={value} style={styles.statValue} />
     <Text style={styles.statUnit}>{unit}</Text>
+  </View>
+);
+
+// Étiquette de section d'une exclusion stricte : rouge + cadenas, sans capitales.
+const StrictLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <View style={styles.dangerSection}>
+    <Text style={styles.dangerSectionLabel}>{children}</Text>
+    <View style={styles.dangerHint}>
+      <Ionicons name="lock-closed" size={12} color={COLORS.danger} />
+      <Text style={styles.dangerHintText}>Exclusion stricte</Text>
+    </View>
   </View>
 );
 
@@ -252,18 +283,32 @@ const MemberEditor: React.FC<{
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <AppBackground />
       <View style={styles.editorHeader}>
-        <PressableScale onPress={onCancel} style={styles.textBtn}>
-          <Text style={styles.textBtnLabel}>Annuler</Text>
+        <PressableScale onPress={onCancel} accessibilityRole="button" accessibilityLabel="Annuler">
+          <Glass radius={RADIUS.pill} interactive style={styles.navPill}>
+            <Text style={styles.navPillText}>Annuler</Text>
+          </Glass>
         </PressableScale>
-        <Text style={styles.editorTitle}>{isNew ? 'Nouvelle personne' : m.name || 'Profil'}</Text>
-        <PressableScale onPress={() => canSave && onSave(m)} style={styles.textBtn} disabled={!canSave}>
-          <Text style={[styles.textBtnLabel, { color: canSave ? COLORS.primaryLight : COLORS.textMuted }]}>OK</Text>
+        <Text style={styles.editorTitle} numberOfLines={1}>{isNew ? 'Nouvelle personne' : m.name || 'Profil'}</Text>
+        <PressableScale
+          onPress={() => canSave && onSave(m)}
+          disabled={!canSave}
+          accessibilityRole="button"
+          accessibilityLabel="OK"
+          accessibilityState={{ disabled: !canSave }}
+          style={[styles.navPill, styles.navPillPrimary, !canSave && { opacity: 0.4 }]}
+        >
+          <Text style={styles.navPillPrimaryText}>OK</Text>
         </PressableScale>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: insets.bottom + 80 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <Card style={styles.previewCard}>
+      <ScrollView
+        contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, paddingBottom: insets.bottom + 80 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Card>
           <Text style={styles.previewLabel}>Cible par jour</Text>
           <View style={styles.previewRow}>
             <AnimatedNumber value={preview.targetCalories} style={styles.previewKcal} />
@@ -277,14 +322,16 @@ const MemberEditor: React.FC<{
         </Card>
 
         <SectionLabel>Prénom</SectionLabel>
-        <TextInput
-          value={m.name}
-          onChangeText={(name) => set({ name })}
-          placeholder="Prénom"
-          placeholderTextColor={COLORS.textMuted}
-          style={styles.input}
-          autoCapitalize="words"
-        />
+        <Glass radius={RADIUS.lg}>
+          <TextInput
+            value={m.name}
+            onChangeText={(name) => set({ name })}
+            placeholder="Prénom"
+            placeholderTextColor={COLORS.textMuted}
+            style={styles.input}
+            autoCapitalize="words"
+          />
+        </Glass>
 
         <SectionLabel>Objectif</SectionLabel>
         <Segmented options={GOALS} value={m.goal} onChange={(goal) => set({ goal })} />
@@ -311,7 +358,7 @@ const MemberEditor: React.FC<{
         </View>
         <Text style={styles.helper}>{ACTIVITY_CONFIG[m.activityLevel].description}</Text>
 
-        <SectionLabel hint="exclusion stricte">Allergies</SectionLabel>
+        <StrictLabel>Allergies</StrictLabel>
         <View style={styles.chipsRow}>
           {ALLERGENS.map((a) => (
             <Chip
@@ -324,31 +371,35 @@ const MemberEditor: React.FC<{
           ))}
         </View>
 
-        <SectionLabel hint="exclusion stricte">Autres aliments interdits</SectionLabel>
+        <StrictLabel>Autres aliments interdits</StrictLabel>
         <AddRow
           value={strictInput}
           onChange={setStrictInput}
           placeholder="Ex. kiwi, porc"
           onAdd={() => addTo('strictExclusions', strictInput, () => setStrictInput(''))}
         />
-        <View style={styles.chipsRow}>
-          {m.strictExclusions!.map((s) => (
-            <Chip key={s} label={s} tone="danger" active onRemove={() => set({ strictExclusions: m.strictExclusions!.filter((x) => x !== s) })} />
-          ))}
-        </View>
+        {m.strictExclusions!.length > 0 && (
+          <View style={styles.chipsRow}>
+            {m.strictExclusions!.map((s) => (
+              <Chip key={s} label={s} tone="danger" active onRemove={() => set({ strictExclusions: m.strictExclusions!.filter((x) => x !== s) })} />
+            ))}
+          </View>
+        )}
 
-        <SectionLabel hint="à éviter si possible">N'aime pas</SectionLabel>
+        <SectionLabel hint="À éviter si possible">N'aime pas</SectionLabel>
         <AddRow
           value={dislikeInput}
           onChange={setDislikeInput}
           placeholder="Ex. bouillon miso"
           onAdd={() => addTo('dislikes', dislikeInput, () => setDislikeInput(''))}
         />
-        <View style={styles.chipsRow}>
-          {m.dislikes!.map((s) => (
-            <Chip key={s} label={s} active onRemove={() => set({ dislikes: m.dislikes!.filter((x) => x !== s) })} />
-          ))}
-        </View>
+        {m.dislikes!.length > 0 && (
+          <View style={styles.chipsRow}>
+            {m.dislikes!.map((s) => (
+              <Chip key={s} label={s} active onRemove={() => set({ dislikes: m.dislikes!.filter((x) => x !== s) })} />
+            ))}
+          </View>
+        )}
 
         <SectionLabel>Cuisines préférées</SectionLabel>
         <View style={styles.chipsRow}>
@@ -358,7 +409,7 @@ const MemberEditor: React.FC<{
         </View>
 
         {!isOwner && !isNew && (
-          <PressableScale onPress={onRemove} style={styles.removeBtn}>
+          <PressableScale onPress={onRemove} style={styles.removeBtn} accessibilityRole="button">
             <Text style={styles.removeText}>Retirer du foyer</Text>
           </PressableScale>
         )}
@@ -374,17 +425,19 @@ const AddRow: React.FC<{
   onAdd: () => void;
 }> = ({ value, onChange, placeholder, onAdd }) => (
   <View style={styles.addRow}>
-    <TextInput
-      value={value}
-      onChangeText={onChange}
-      placeholder={placeholder}
-      placeholderTextColor={COLORS.textMuted}
-      style={[styles.input, { flex: 1 }]}
-      onSubmitEditing={onAdd}
-      returnKeyType="done"
-    />
-    <PressableScale onPress={onAdd} style={styles.addBtn} accessibilityLabel="Ajouter">
-      <Ionicons name="add" size={22} color="#08110D" />
+    <Glass radius={RADIUS.pill} style={{ flex: 1 }}>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor={COLORS.textMuted}
+        style={styles.pillInput}
+        onSubmitEditing={onAdd}
+        returnKeyType="done"
+      />
+    </Glass>
+    <PressableScale onPress={onAdd} style={styles.addBtn} accessibilityLabel="Ajouter" accessibilityRole="button">
+      <Ionicons name="add" size={22} color={COLORS.onPrimary} />
     </PressableScale>
   </View>
 );
@@ -392,96 +445,131 @@ const AddRow: React.FC<{
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: RADIUS.pill,
-    backgroundColor: COLORS.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  display: { ...TYPE.display, color: COLORS.text },
-  lead: { ...TYPE.body, color: COLORS.textSecondary, marginTop: SPACING.xs, lineHeight: 21 },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  titleBlock: { paddingHorizontal: SPACING.xs },
+  display: { ...TYPE.largeTitle, color: COLORS.text },
+  lead: { ...TYPE.body, color: COLORS.textSecondary, marginTop: SPACING.xs, lineHeight: 22 },
+
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: RADIUS.pill,
-    borderWidth: 1.5,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { fontSize: 20, fontWeight: '800' },
+  avatarText: { fontSize: 18, fontWeight: '600', color: COLORS.text },
   name: { ...TYPE.headline, color: COLORS.text },
-  goal: { ...TYPE.caption, color: COLORS.textSecondary, marginTop: 2 },
-  statsRow: { flexDirection: 'row', marginTop: SPACING.lg },
-  statValue: { color: COLORS.text, fontSize: 20, fontWeight: '800' },
-  statUnit: { ...TYPE.caption, color: COLORS.textMuted, marginTop: 2 },
-  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginTop: SPACING.sm },
-  addCard: {
+  nameMuted: { ...TYPE.callout, fontWeight: '400', color: COLORS.textSecondary },
+  goal: { ...TYPE.caption, fontWeight: '400', color: COLORS.textSecondary, marginTop: 2 },
+  statsRow: {
+    flexDirection: 'row',
     marginTop: SPACING.md,
-    borderRadius: RADIUS.xl,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: COLORS.borderStrong,
-    paddingVertical: SPACING.lg,
+    paddingTop: SPACING.md,
+    borderTopWidth: HAIRLINE,
+    borderTopColor: COLORS.border,
+  },
+  statValue: { ...TYPE.number, fontSize: 22, color: COLORS.text },
+  statUnit: { ...TYPE.caption, fontWeight: '400', color: COLORS.textSecondary, marginTop: 2 },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginTop: SPACING.sm },
+
+  strictBlock: {
+    marginTop: SPACING.md,
+    paddingTop: SPACING.md,
+    borderTopWidth: HAIRLINE,
+    borderTopColor: COLORS.border,
+  },
+  strictHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  strictLabel: { ...TYPE.caption, color: COLORS.danger },
+
+  secondaryBtn: {
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: SPACING.sm,
   },
-  addText: { ...TYPE.headline, color: COLORS.primaryLight },
+  secondaryText: { color: COLORS.text, fontSize: 17, fontWeight: '600' },
+
   note: {
     flexDirection: 'row',
     gap: SPACING.sm,
-    marginTop: SPACING.xl,
-    padding: SPACING.md,
-    borderRadius: RADIUS.lg,
-    backgroundColor: COLORS.surface,
+    marginTop: SPACING.lg,
+    paddingHorizontal: SPACING.md,
   },
-  noteText: { ...TYPE.caption, color: COLORS.textSecondary, flex: 1, lineHeight: 18, fontWeight: '500' },
+  noteText: { ...TYPE.footnote, fontWeight: '400', color: COLORS.textSecondary, flex: 1, lineHeight: 17 },
+
   editorHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: SPACING.sm,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.sm,
   },
-  editorTitle: { ...TYPE.headline, color: COLORS.text },
-  textBtn: { paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs },
-  textBtnLabel: { fontSize: 15, fontWeight: '600', color: COLORS.textSecondary },
-  previewCard: { backgroundColor: COLORS.cardElevated },
-  previewLabel: { ...TYPE.overline, color: COLORS.textMuted },
+  editorTitle: { ...TYPE.headline, color: COLORS.text, flex: 1, textAlign: 'center' },
+  navPill: { height: 36, paddingHorizontal: SPACING.md, alignItems: 'center', justifyContent: 'center' },
+  navPillText: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  navPillPrimary: { borderRadius: RADIUS.pill, backgroundColor: COLORS.primary, minWidth: 56 },
+  navPillPrimaryText: { fontSize: 15, fontWeight: '600', color: COLORS.onPrimary },
+
+  previewLabel: { ...TYPE.caption, color: COLORS.textSecondary },
   previewRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: SPACING.xs },
-  previewKcal: { ...TYPE.display, color: COLORS.text, fontSize: 40 },
-  previewUnit: { ...TYPE.headline, color: COLORS.textSecondary },
+  previewKcal: { ...TYPE.number, color: COLORS.text, fontSize: 44 },
+  previewUnit: { ...TYPE.headline, fontWeight: '500', color: COLORS.textSecondary },
+
   input: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
     paddingHorizontal: SPACING.md,
-    paddingVertical: 13,
+    paddingVertical: 14,
     color: COLORS.text,
-    fontSize: 15,
+    fontSize: 17,
+  },
+  pillInput: {
+    paddingHorizontal: SPACING.lg,
+    height: 46,
+    color: COLORS.text,
+    fontSize: 16,
   },
   stepperGrid: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.md },
-  helper: { ...TYPE.caption, color: COLORS.textMuted, marginTop: SPACING.sm, fontWeight: '500' },
+  helper: { ...TYPE.footnote, fontWeight: '400', color: COLORS.textSecondary, marginTop: SPACING.sm, lineHeight: 17 },
+
+  dangerSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: SPACING.xl,
+    marginBottom: SPACING.sm,
+  },
+  dangerSectionLabel: { ...TYPE.overline, color: COLORS.textSecondary },
+  dangerHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.dangerSoft,
+  },
+  dangerHintText: { ...TYPE.footnote, color: COLORS.danger },
+
   addRow: { flexDirection: 'row', gap: SPACING.sm, alignItems: 'center' },
   addBtn: {
     width: 46,
     height: 46,
-    borderRadius: RADIUS.lg,
+    borderRadius: 23,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   removeBtn: {
     marginTop: SPACING.xxl,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.lg,
+    height: 52,
+    borderRadius: RADIUS.pill,
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: COLORS.dangerSoft,
   },
-  removeText: { ...TYPE.headline, color: COLORS.danger },
+  removeText: { color: COLORS.danger, fontSize: 17, fontWeight: '600' },
 });

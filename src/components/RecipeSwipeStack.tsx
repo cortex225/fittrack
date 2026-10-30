@@ -6,12 +6,14 @@ import {
   PanResponder,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, RADIUS, SPACING } from '../theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, RADIUS, SHADOW, SPACING, TYPE } from '../theme';
+import { Glass } from './glass';
+import { PressableScale } from './ui';
 import { Recipe } from '../types';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -96,7 +98,7 @@ export default function RecipeSwipeStack({ recipes, onLike, onSkip, onDetails, o
   if (!current) {
     return (
       <View style={styles.doneBox}>
-        <Ionicons name="checkmark-done-circle" size={48} color={COLORS.primary} />
+        <Ionicons name="checkmark-circle-outline" size={44} color={COLORS.primary} />
         <Text style={styles.doneTitle}>Plus de suggestions</Text>
         <Text style={styles.doneSub}>Régénère pour de nouvelles idées.</Text>
       </View>
@@ -106,7 +108,7 @@ export default function RecipeSwipeStack({ recipes, onLike, onSkip, onDetails, o
   return (
     <View style={styles.stackWrap}>
       <Text style={styles.counter}>
-        {index + 1} / {recipes.length}
+        {index + 1} sur {recipes.length}
       </Text>
 
       <View style={styles.stack}>
@@ -132,27 +134,37 @@ export default function RecipeSwipeStack({ recipes, onLike, onSkip, onDetails, o
           <RecipeCardContent recipe={current} />
 
           <Animated.View style={[styles.stamp, styles.stampLike, { opacity: likeOpacity }]}>
-            <Text style={styles.stampTextLike}>MIAM</Text>
+            <Ionicons name="heart" size={16} color={COLORS.onPrimary} />
+            <Text style={styles.stampTextLike}>Miam</Text>
           </Animated.View>
           <Animated.View style={[styles.stamp, styles.stampNope, { opacity: nopeOpacity }]}>
-            <Text style={styles.stampTextNope}>PASSE</Text>
+            <Ionicons name="close" size={16} color={COLORS.text} />
+            <Text style={styles.stampTextNope}>Passe</Text>
           </Animated.View>
         </Animated.View>
       </View>
 
       <View style={styles.actions}>
-        <TouchableOpacity style={[styles.actionBtn, styles.actionSkip]} onPress={() => flick('left')}>
-          <Ionicons name="close" size={28} color={COLORS.danger} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.actionInfo]} onPress={() => onDetails(current)}>
-          <Ionicons name="reader-outline" size={22} color={COLORS.blue} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.actionLike]} onPress={() => flick('right')}>
-          <Ionicons name="heart" size={26} color={COLORS.primary} />
-        </TouchableOpacity>
+        <PressableScale onPress={() => flick('left')} accessibilityLabel="Passer cette recette">
+          <Glass radius={30} style={styles.actionBtn}>
+            <Ionicons name="close" size={26} color={COLORS.text} />
+          </Glass>
+        </PressableScale>
+        <PressableScale onPress={() => onDetails(current)} accessibilityLabel="Voir la recette">
+          <Glass radius={24} style={styles.actionInfo}>
+            <Ionicons name="reader-outline" size={20} color={COLORS.text} />
+          </Glass>
+        </PressableScale>
+        <PressableScale
+          onPress={() => flick('right')}
+          style={[styles.actionBtn, styles.actionLike]}
+          accessibilityLabel="Garder cette recette"
+        >
+          <Ionicons name="heart" size={24} color={COLORS.onPrimary} />
+        </PressableScale>
       </View>
 
-      <Text style={styles.hint}>Swipe → garder · ← passer · tap ℹ pour détails</Text>
+      <Text style={styles.hint}>Glisse à droite pour garder, à gauche pour passer</Text>
     </View>
   );
 }
@@ -175,19 +187,34 @@ function RecipeCardContent({ recipe }: { recipe: Recipe }) {
         <View style={styles.imagePlaceholder} pointerEvents="none">
           {errored ? (
             <>
-              <Ionicons name="image-outline" size={32} color={COLORS.textMuted} />
+              <Ionicons name="image-outline" size={30} color={COLORS.textMuted} />
               <Text style={styles.imagePlaceholderText}>Image indisponible</Text>
             </>
           ) : (
             <>
-              <ActivityIndicator color={COLORS.primary} />
+              <ActivityIndicator color={COLORS.textSecondary} />
               <Text style={styles.imagePlaceholderText}>Génération de l'image…</Text>
             </>
           )}
         </View>
       )}
-      <View style={styles.cardOverlay} />
+      <LinearGradient
+        colors={['rgba(5,6,11,0)', 'rgba(5,6,11,0.72)', 'rgba(5,6,11,0.94)']}
+        locations={[0, 0.45, 1]}
+        style={styles.cardOverlay}
+        pointerEvents="none"
+      />
       <View style={styles.cardInfo}>
+        <View style={styles.metaRow}>
+          <View style={styles.metaPill}>
+            <Ionicons name="time-outline" size={13} color={COLORS.text} />
+            <Text style={styles.metaText}>{recipe.prepTime}</Text>
+          </View>
+          <View style={styles.metaPill}>
+            <Ionicons name="speedometer-outline" size={13} color={COLORS.text} />
+            <Text style={styles.metaText}>{recipe.difficulty}</Text>
+          </View>
+        </View>
         <Text style={styles.recipeName} numberOfLines={2}>
           {recipe.name}
         </Text>
@@ -195,30 +222,26 @@ function RecipeCardContent({ recipe }: { recipe: Recipe }) {
           {recipe.desc}
         </Text>
         <View style={styles.statRow}>
-          <Stat color={COLORS.primary} value={`${recipe.calories}`} label="KCAL" />
-          <Stat color={COLORS.blue} value={`${recipe.protein}g`} label="PROT" />
-          <Stat color={COLORS.accent} value={`${recipe.carbs}g`} label="GLUC" />
-          <Stat color={COLORS.danger} value={`${recipe.fats}g`} label="LIP" />
-        </View>
-        <View style={styles.metaRow}>
-          <View style={styles.metaPill}>
-            <Ionicons name="time-outline" size={12} color={COLORS.textSecondary} />
-            <Text style={styles.metaText}>{recipe.prepTime}</Text>
-          </View>
-          <View style={styles.metaPill}>
-            <Ionicons name="flame-outline" size={12} color={COLORS.textSecondary} />
-            <Text style={styles.metaText}>{recipe.difficulty}</Text>
-          </View>
+          <Stat value={`${recipe.calories}`} unit="kcal" label="Énergie" />
+          <Stat dot={COLORS.blue} value={`${recipe.protein}`} unit="g" label="Protéines" />
+          <Stat dot={COLORS.accent} value={`${recipe.carbs}`} unit="g" label="Glucides" />
+          <Stat dot={COLORS.purple} value={`${recipe.fats}`} unit="g" label="Lipides" />
         </View>
       </View>
     </>
   );
 }
 
-const Stat: React.FC<{ color: string; value: string; label: string }> = ({ color, value, label }) => (
+const Stat: React.FC<{ dot?: string; value: string; unit: string; label: string }> = ({ dot, value, unit, label }) => (
   <View style={styles.stat}>
-    <Text style={[styles.statValue, { color }]}>{value}</Text>
-    <Text style={styles.statLabel}>{label}</Text>
+    <Text style={styles.statValue}>
+      {value}
+      <Text style={styles.statUnit}> {unit}</Text>
+    </Text>
+    <View style={styles.statLabelRow}>
+      {dot ? <View style={[styles.statDot, { backgroundColor: dot }]} /> : null}
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
   </View>
 );
 
@@ -227,10 +250,8 @@ const CARD_HEIGHT = 480;
 const styles = StyleSheet.create({
   stackWrap: { flex: 1, alignItems: 'center', paddingTop: SPACING.sm },
   counter: {
+    ...TYPE.footnote,
     color: COLORS.textMuted,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 2,
     marginBottom: SPACING.sm,
   },
   stack: {
@@ -244,18 +265,22 @@ const styles = StyleSheet.create({
     width: '94%',
     height: CARD_HEIGHT,
     borderRadius: RADIUS.xl,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: 'rgba(18,20,28,0.9)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.borderStrong,
     overflow: 'hidden',
+    ...SHADOW.card,
   },
   cardBehind: {
     transform: [{ scale: 0.94 }, { translateY: 14 }],
     opacity: 0.5,
   },
   cardImage: {
-    width: '100%',
-    height: '60%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: COLORS.surface,
   },
   imagePlaceholder: {
@@ -263,91 +288,94 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: '60%',
+    height: '62%',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: COLORS.surface,
   },
   imagePlaceholderText: {
+    ...TYPE.footnote,
     color: COLORS.textMuted,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
   },
   cardOverlay: {
     position: 'absolute',
     left: 0,
     right: 0,
-    top: '40%',
-    height: '25%',
-    backgroundColor: 'transparent',
+    bottom: 0,
+    height: '62%',
   },
   cardInfo: {
-    padding: SPACING.md,
-    flex: 1,
-    justifyContent: 'space-between',
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: SPACING.lg,
   },
-  recipeName: { color: COLORS.text, fontSize: 20, fontWeight: '900' },
-  recipeDesc: { color: COLORS.textSecondary, fontSize: 12, marginTop: 4, lineHeight: 16 },
-  statRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACING.sm },
-  stat: { alignItems: 'center', flex: 1 },
-  statValue: { fontSize: 16, fontWeight: '900' },
-  statLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '800', letterSpacing: 1, marginTop: 2 },
-  metaRow: { flexDirection: 'row', gap: 8, marginTop: SPACING.sm },
+  recipeName: { ...TYPE.title, fontSize: 24, color: COLORS.text, marginTop: SPACING.sm },
+  recipeDesc: { ...TYPE.callout, fontWeight: '400', color: COLORS.textSecondary, marginTop: 4, lineHeight: 20 },
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: SPACING.md,
+    paddingTop: SPACING.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.borderStrong,
+  },
+  stat: { flex: 1 },
+  statValue: { ...TYPE.number, fontSize: 18, color: COLORS.text },
+  statUnit: { fontSize: 12, fontWeight: '500', letterSpacing: 0, color: COLORS.textSecondary },
+  statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  statDot: { width: 6, height: 6, borderRadius: 3 },
+  statLabel: { ...TYPE.footnote, color: COLORS.textSecondary },
+  metaRow: { flexDirection: 'row', gap: 8 },
   metaPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 6,
+    gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: RADIUS.pill,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
-  metaText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
+  metaText: { ...TYPE.footnote, color: COLORS.text },
 
   stamp: {
     position: 'absolute',
     top: SPACING.lg,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 6,
-    borderRadius: RADIUS.md,
-    borderWidth: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: RADIUS.pill,
   },
-  stampLike: { right: SPACING.lg, borderColor: COLORS.primary, transform: [{ rotate: '-15deg' }] },
-  stampNope: { left: SPACING.lg, borderColor: COLORS.danger, transform: [{ rotate: '15deg' }] },
-  stampTextLike: { color: COLORS.primary, fontWeight: '900', fontSize: 22, letterSpacing: 2 },
-  stampTextNope: { color: COLORS.danger, fontWeight: '900', fontSize: 22, letterSpacing: 2 },
+  stampLike: { left: SPACING.lg, backgroundColor: COLORS.primary },
+  stampNope: { right: SPACING.lg, backgroundColor: 'rgba(30,32,40,0.85)' },
+  stampTextLike: { ...TYPE.headline, color: COLORS.onPrimary },
+  stampTextNope: { ...TYPE.headline, color: COLORS.text },
 
   actions: {
     flexDirection: 'row',
-    gap: SPACING.md,
-    marginTop: SPACING.md,
+    gap: SPACING.lg,
+    marginTop: SPACING.lg,
     alignItems: 'center',
   },
   actionBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
+    width: 60,
+    height: 60,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionSkip: { borderColor: `${COLORS.danger}55` },
-  actionInfo: { width: 48, height: 48, borderRadius: 24, borderColor: `${COLORS.blue}55` },
-  actionLike: { borderColor: `${COLORS.primary}55` },
+  actionInfo: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  actionLike: { borderRadius: 30, backgroundColor: COLORS.primary },
   hint: {
+    ...TYPE.footnote,
     color: COLORS.textMuted,
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: SPACING.sm,
+    marginTop: SPACING.md,
     textAlign: 'center',
   },
 
   doneBox: { alignItems: 'center', paddingVertical: SPACING.xl, gap: 8 },
-  doneTitle: { color: COLORS.text, fontSize: 16, fontWeight: '800' },
-  doneSub: { color: COLORS.textMuted, fontSize: 12 },
+  doneTitle: { ...TYPE.headline, color: COLORS.text },
+  doneSub: { ...TYPE.caption, color: COLORS.textSecondary },
 });

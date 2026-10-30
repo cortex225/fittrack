@@ -38,9 +38,15 @@ export const PressableScale: React.FC<PressableScaleProps> = ({
   const animate = (to: number) =>
     Animated.spring(scale, { toValue: to, useNativeDriver: true, speed: 40, bounciness: 6 }).start();
 
+  // Les propriétés de placement (flex, marges, largeur, position) vont sur le
+  // Pressable extérieur, pour que l'élément prenne sa place dans une rangée ;
+  // le reste du style (fond, bordure, padding) reste sur la vue animée.
+  const { outer, inner } = splitLayout(style);
+
   return (
     <Pressable
       {...rest}
+      style={outer}
       onPressIn={(e) => {
         animate(scaleTo);
         onPressIn?.(e);
@@ -50,9 +56,29 @@ export const PressableScale: React.FC<PressableScaleProps> = ({
         onPressOut?.(e);
       }}
     >
-      <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
+      <Animated.View style={[inner, { transform: [{ scale }] }]}>{children}</Animated.View>
     </Pressable>
   );
+};
+
+const LAYOUT_KEYS = [
+  'flex', 'flexGrow', 'flexShrink', 'flexBasis', 'alignSelf', 'width', 'minWidth', 'maxWidth',
+  'margin', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'marginHorizontal', 'marginVertical',
+  'position', 'top', 'left', 'right', 'bottom', 'zIndex',
+] as const;
+
+const splitLayout = (style?: StyleProp<ViewStyle>): { outer: ViewStyle; inner: ViewStyle } => {
+  const flat = { ...(StyleSheet.flatten(style) ?? {}) } as Record<string, unknown>;
+  const outer: Record<string, unknown> = {};
+  for (const key of LAYOUT_KEYS) {
+    if (flat[key] !== undefined) {
+      outer[key] = flat[key];
+      delete flat[key];
+    }
+  }
+  // La vue animée remplit le Pressable quand celui-ci est étiré.
+  if (outer.flex !== undefined || outer.flexGrow !== undefined || outer.width !== undefined) flat.flexGrow = 1;
+  return { outer: outer as ViewStyle, inner: flat as ViewStyle };
 };
 
 // ── AnimatedNumber : compte jusqu'à la nouvelle valeur ─────────────────────

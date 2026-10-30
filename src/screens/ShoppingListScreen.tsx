@@ -5,7 +5,7 @@ import {
   Modal,
   Platform,
   Pressable,
-  SectionList,
+  FlatList,
   StatusBar,
   StyleSheet,
   Text,
@@ -31,6 +31,7 @@ import {
 import { CATEGORY_LABEL, CATEGORY_ORDER } from '../utils/grocery';
 import { useApp } from '../contexts/AppContext';
 import { Card, PressableScale, Segmented } from '../components/ui';
+import { Glass } from '../components/glass';
 
 const money = (n: number) =>
   n.toLocaleString('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 });
@@ -137,20 +138,24 @@ export default function ShoppingListScreen() {
       <StatusBar barStyle="light-content" />
 
       <View style={styles.header}>
-        <PressableScale onPress={() => navigation.goBack()} style={styles.iconBtn} accessibilityLabel="Retour">
-          <Ionicons name="chevron-back" size={22} color={COLORS.text} />
+        <PressableScale onPress={() => navigation.goBack()} accessibilityLabel="Retour">
+          <Glass radius={20} style={styles.iconBtn}>
+            <Ionicons name="chevron-back" size={22} color={COLORS.text} />
+          </Glass>
         </PressableScale>
-        <PressableScale onPress={() => navigation.navigate('MealPlan')} style={styles.iconBtn} accessibilityLabel="Menu de la semaine">
-          <Ionicons name="calendar-outline" size={19} color={COLORS.primaryLight} />
+        <PressableScale onPress={() => navigation.navigate('MealPlan')} accessibilityLabel="Menu de la semaine">
+          <Glass radius={20} style={styles.iconBtn}>
+            <Ionicons name="calendar-outline" size={20} color={COLORS.text} />
+          </Glass>
         </PressableScale>
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <SectionList
-          sections={sections}
-          keyExtractor={(it) => it.id}
-          stickySectionHeadersEnabled={false}
-          contentContainerStyle={{ padding: SPACING.lg, paddingBottom: insets.bottom + 160 }}
+        <FlatList
+          data={sections}
+          keyExtractor={(sec) => sec.title}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingBottom: insets.bottom + 160 }}
           ListHeaderComponent={
             <View>
               <Text style={styles.display}>Épicerie</Text>
@@ -164,6 +169,7 @@ export default function ShoppingListScreen() {
                     <Text style={styles.overline}>Budget par semaine</Text>
                     <Text style={styles.budgetValue}>{budget.weekly ? money(budget.weekly) : 'À définir'}</Text>
                   </View>
+                  <View style={styles.budgetDivider} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.overline}>Dépensé par semaine</Text>
                     <Text
@@ -195,28 +201,42 @@ export default function ShoppingListScreen() {
                     : "Après l'épicerie, entre le total du reçu pour suivre ton budget."}
                 </Text>
                 <View style={styles.budgetActions}>
-                  <PressableScale onPress={() => setBudgetOpen(true)} style={styles.ghost}>
-                    <Text style={styles.ghostText}>Modifier le budget</Text>
-                  </PressableScale>
-                  <PressableScale onPress={() => setTripOpen(true)} style={styles.primarySmall}>
-                    <Ionicons name="receipt-outline" size={15} color="#08110D" />
-                    <Text style={styles.primarySmallText}>J'ai fait l'épicerie</Text>
-                  </PressableScale>
+                  <View style={{ flex: 1 }}>
+                    <PressableScale onPress={() => setBudgetOpen(true)}>
+                      <Glass radius={RADIUS.pill} style={styles.ghost}>
+                        <Text style={styles.ghostText}>Modifier le budget</Text>
+                      </Glass>
+                    </PressableScale>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <PressableScale onPress={() => setTripOpen(true)} style={styles.primarySmall}>
+                      <Ionicons name="receipt-outline" size={17} color={COLORS.onPrimary} />
+                      <Text style={styles.primarySmallText}>J'ai fait l'épicerie</Text>
+                    </PressableScale>
+                  </View>
                 </View>
               </Card>
 
               {items.length > 0 && (
                 <View style={styles.actionsRow}>
                   {checkedCount > 0 && (
-                    <Pressable style={[styles.actionBtn, styles.actionBtnSecondary]} onPress={handleClearChecked}>
-                      <Ionicons name="checkmark-done-outline" size={14} color={COLORS.primary} />
-                      <Text style={[styles.actionBtnText, { color: COLORS.primary }]}>Effacer cochés</Text>
-                    </Pressable>
+                    <View style={{ flex: 1 }}>
+                      <PressableScale onPress={handleClearChecked}>
+                        <Glass radius={RADIUS.pill} style={styles.actionBtn}>
+                          <Ionicons name="checkmark-done-outline" size={17} color={COLORS.text} />
+                          <Text style={styles.actionBtnText}>Effacer cochés</Text>
+                        </Glass>
+                      </PressableScale>
+                    </View>
                   )}
-                  <Pressable style={[styles.actionBtn, styles.actionBtnDanger]} onPress={handleClearAll}>
-                    <Ionicons name="trash-outline" size={14} color={COLORS.danger} />
-                    <Text style={[styles.actionBtnText, { color: COLORS.danger }]}>Tout vider</Text>
-                  </Pressable>
+                  <View style={{ flex: 1 }}>
+                    <PressableScale onPress={handleClearAll}>
+                      <Glass radius={RADIUS.pill} style={styles.actionBtn}>
+                        <Ionicons name="trash-outline" size={17} color={COLORS.danger} />
+                        <Text style={[styles.actionBtnText, { color: COLORS.danger }]}>Tout vider</Text>
+                      </Glass>
+                    </PressableScale>
+                  </View>
                 </View>
               )}
             </View>
@@ -228,44 +248,63 @@ export default function ShoppingListScreen() {
               <Text style={styles.emptyText}>Ouvre Ta semaine, puis « Liste d'épicerie », ou ajoute un article ci-dessous.</Text>
             </View>
           }
-          renderSectionHeader={({ section }) => <Text style={styles.sectionTitle}>{section.title}</Text>}
-          renderItem={({ item }) => (
-            <Pressable style={[styles.row, item.checked && styles.rowChecked]} onPress={() => handleToggle(item.id)}>
-              <View style={[styles.checkbox, item.checked && styles.checkboxOn]}>
-                {item.checked && <Ionicons name="checkmark" size={14} color="#08110D" />}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.itemName, item.checked && styles.itemNameChecked]} numberOfLines={2}>
-                  {item.name}
-                </Text>
-                {(item.note || item.recipes.length > 0) && (
-                  <Text style={styles.itemFrom} numberOfLines={1}>
-                    {item.note ??
-                      (item.recipes.length === 1 ? `pour ${item.recipes[0]}` : `pour ${item.recipes.length} plats`)}
-                  </Text>
-                )}
-              </View>
-              {item.quantity ? <Text style={styles.qty}>{item.quantity}</Text> : null}
-              <Pressable hitSlop={10} onPress={() => handleDelete(item.id)} accessibilityLabel={`Retirer ${item.name}`}>
-                <Ionicons name="close-circle" size={20} color={COLORS.textMuted} />
-              </Pressable>
-            </Pressable>
+          renderItem={({ item: section }) => (
+            <View>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              <Glass radius={RADIUS.xl}>
+                {section.data.map((item, idx) => (
+                  <View key={item.id}>
+                    {idx > 0 && <View style={styles.separator} />}
+                    <Pressable
+                      style={({ pressed }) => [styles.row, pressed && { backgroundColor: COLORS.surface }]}
+                      onPress={() => handleToggle(item.id)}
+                    >
+                      <View style={[styles.checkbox, item.checked && styles.checkboxOn]}>
+                        {item.checked && <Ionicons name="checkmark" size={15} color={COLORS.onPrimary} />}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.itemName, item.checked && styles.itemNameChecked]} numberOfLines={2}>
+                          {item.name}
+                        </Text>
+                        {(item.note || item.recipes.length > 0) && (
+                          <Text style={styles.itemFrom} numberOfLines={1}>
+                            {item.note ??
+                              (item.recipes.length === 1 ? `pour ${item.recipes[0]}` : `pour ${item.recipes.length} plats`)}
+                          </Text>
+                        )}
+                      </View>
+                      {item.quantity ? <Text style={styles.qty}>{item.quantity}</Text> : null}
+                      <Pressable hitSlop={10} onPress={() => handleDelete(item.id)} accessibilityLabel={`Retirer ${item.name}`}>
+                        <Ionicons name="close-circle" size={20} color={COLORS.textMuted} />
+                      </Pressable>
+                    </Pressable>
+                  </View>
+                ))}
+              </Glass>
+            </View>
           )}
         />
 
         <View style={[styles.addBar, { paddingBottom: insets.bottom + SPACING.sm }]}>
-          <TextInput
-            style={styles.input}
-            value={input}
-            onChangeText={setInput}
-            placeholder="Ajouter un article…"
-            placeholderTextColor={COLORS.textMuted}
-            onSubmitEditing={handleAdd}
-            returnKeyType="done"
-          />
-          <PressableScale style={styles.addBtn} onPress={handleAdd} disabled={!input.trim()}>
-            <Ionicons name="add" size={22} color="#08110D" />
-          </PressableScale>
+          <Glass radius={RADIUS.pill} style={styles.addGlass}>
+            <TextInput
+              style={styles.input}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Ajouter un article…"
+              placeholderTextColor={COLORS.textMuted}
+              onSubmitEditing={handleAdd}
+              returnKeyType="done"
+            />
+            <PressableScale
+              style={[styles.addBtn, !input.trim() && styles.addBtnDisabled]}
+              onPress={handleAdd}
+              disabled={!input.trim()}
+              accessibilityLabel="Ajouter"
+            >
+              <Ionicons name="add" size={22} color={input.trim() ? COLORS.onPrimary : COLORS.textMuted} />
+            </PressableScale>
+          </Glass>
         </View>
       </KeyboardAvoidingView>
 
@@ -306,6 +345,7 @@ const AmountSheet: React.FC<{
   onClose: () => void;
   onSave: (amount: number, weeks?: number) => void;
 }> = ({ visible, title, initial, withWeeks, onClose, onSave }) => {
+  const insets = useSafeAreaInsets();
   const [value, setValue] = useState(initial ? String(initial) : '');
   const [weeks, setWeeks] = useState<'1' | '2' | '3'>('2');
   const amount = parseFloat(value.replace(',', '.'));
@@ -314,38 +354,50 @@ const AmountSheet: React.FC<{
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
-          <Text style={styles.sheetTitle}>{title}</Text>
-          <TextInput
-            value={value}
-            onChangeText={setValue}
-            keyboardType="decimal-pad"
-            placeholder="0 $"
-            placeholderTextColor={COLORS.textMuted}
-            style={styles.amountInput}
-            autoFocus
-          />
-          {withWeeks && (
-            <>
-              <Text style={styles.sheetLabel}>Cette épicerie couvre</Text>
-              <Segmented
-                options={[
-                  { value: '1', label: '1 sem.' },
-                  { value: '2', label: '2 sem.' },
-                  { value: '3', label: '3 sem.' },
-                ]}
-                value={weeks}
-                onChange={setWeeks}
+        <Pressable style={[styles.sheetWrap, { marginBottom: Math.max(insets.bottom, SPACING.sm) }]} onPress={() => {}}>
+          <View style={styles.sheetBacking}>
+            <Glass radius={RADIUS.xl} style={styles.sheet}>
+              <View style={styles.grabber} />
+              <View style={styles.sheetHead}>
+                <Text style={styles.sheetTitle}>{title}</Text>
+                <PressableScale onPress={onClose} accessibilityLabel="Fermer">
+                  <View style={styles.sheetClose}>
+                    <Ionicons name="close" size={18} color={COLORS.textSecondary} />
+                  </View>
+                </PressableScale>
+              </View>
+              <TextInput
+                value={value}
+                onChangeText={setValue}
+                keyboardType="decimal-pad"
+                placeholder="0 $"
+                placeholderTextColor={COLORS.textMuted}
+                style={styles.amountInput}
+                autoFocus
               />
-            </>
-          )}
-          <PressableScale
-            onPress={() => valid && onSave(Math.round(amount * 100) / 100, Number(weeks))}
-            style={[styles.saveBtn, !valid && { opacity: 0.4 }]}
-            disabled={!valid}
-          >
-            <Text style={styles.saveText}>Enregistrer</Text>
-          </PressableScale>
+              {withWeeks && (
+                <>
+                  <Text style={styles.sheetLabel}>Cette épicerie couvre</Text>
+                  <Segmented
+                    options={[
+                      { value: '1', label: '1 sem.' },
+                      { value: '2', label: '2 sem.' },
+                      { value: '3', label: '3 sem.' },
+                    ]}
+                    value={weeks}
+                    onChange={setWeeks}
+                  />
+                </>
+              )}
+              <PressableScale
+                onPress={() => valid && onSave(Math.round(amount * 100) / 100, Number(weeks))}
+                style={[styles.saveBtn, !valid && { opacity: 0.4 }]}
+                disabled={!valid}
+              >
+                <Text style={styles.saveText}>Enregistrer</Text>
+              </PressableScale>
+            </Glass>
+          </View>
         </Pressable>
       </Pressable>
     </Modal>
@@ -355,50 +407,72 @@ const AmountSheet: React.FC<{
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
   header: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
-  iconBtn: { width: 40, height: 40, borderRadius: RADIUS.pill, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
-  display: { ...TYPE.display, color: COLORS.text },
-  lead: { ...TYPE.body, color: COLORS.textSecondary, marginTop: SPACING.xs },
-  overline: { ...TYPE.overline, color: COLORS.textMuted },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  display: { ...TYPE.largeTitle, color: COLORS.text, marginTop: SPACING.xs },
+  lead: { ...TYPE.callout, fontWeight: '400', color: COLORS.textSecondary, marginTop: SPACING.xs },
+  overline: { ...TYPE.caption, color: COLORS.textSecondary },
   budgetTop: { flexDirection: 'row', gap: SPACING.md },
-  budgetValue: { ...TYPE.title, color: COLORS.text, marginTop: 4 },
+  budgetDivider: { width: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
+  budgetValue: { ...TYPE.number, fontSize: 26, color: COLORS.text, marginTop: 4 },
   track: { height: 6, borderRadius: 3, backgroundColor: COLORS.surface, marginTop: SPACING.md, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 3 },
-  hint: { ...TYPE.caption, color: COLORS.textMuted, marginTop: SPACING.sm, fontWeight: '500' },
+  hint: { ...TYPE.footnote, fontWeight: '400', color: COLORS.textMuted, marginTop: SPACING.sm, lineHeight: 17 },
   budgetActions: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md },
-  ghost: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.lg, backgroundColor: COLORS.surface, alignItems: 'center' },
-  ghostText: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
-  primarySmall: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, borderRadius: RADIUS.lg, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
-  primarySmallText: { fontSize: 13, fontWeight: '800', color: '#08110D' },
-  sectionTitle: { ...TYPE.overline, color: COLORS.textSecondary, marginTop: SPACING.lg, marginBottom: SPACING.sm },
+  ghost: { paddingVertical: 13, alignItems: 'center' },
+  ghostText: { ...TYPE.callout, fontWeight: '600', color: COLORS.text },
+  primarySmall: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingVertical: 13,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primarySmallText: { ...TYPE.callout, fontWeight: '600', color: COLORS.onPrimary },
+  sectionTitle: { ...TYPE.overline, color: COLORS.textSecondary, marginTop: SPACING.xl, marginBottom: SPACING.sm, marginLeft: SPACING.md },
 
   empty: { alignItems: 'center', padding: SPACING.xl, gap: 10 },
-  emptyTitle: { color: COLORS.text, fontSize: 15, fontWeight: '800', marginTop: 4 },
-  emptyText: { color: COLORS.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 18 },
+  emptyTitle: { ...TYPE.headline, color: COLORS.text, marginTop: 4 },
+  emptyText: { ...TYPE.caption, fontWeight: '400', color: COLORS.textSecondary, textAlign: 'center', lineHeight: 18 },
 
-  actionsRow: { flexDirection: 'row', gap: 8, marginTop: SPACING.lg },
-  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: RADIUS.pill, borderWidth: 1 },
-  actionBtnSecondary: { backgroundColor: `${COLORS.primary}11`, borderColor: `${COLORS.primary}55` },
-  actionBtnDanger: { backgroundColor: `${COLORS.danger}11`, borderColor: `${COLORS.danger}55` },
-  actionBtnText: { fontSize: 12, fontWeight: '700' },
+  actionsRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11 },
+  actionBtnText: { ...TYPE.callout, fontWeight: '600', color: COLORS.text },
 
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: SPACING.md, backgroundColor: COLORS.card, borderRadius: RADIUS.lg, marginBottom: 6 },
-  rowChecked: { opacity: 0.45 },
-  checkbox: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: COLORS.borderStrong, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surface },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: SPACING.md, paddingVertical: 13 },
+  separator: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border, marginLeft: SPACING.md + 24 + 14 },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   checkboxOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  itemName: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+  itemName: { ...TYPE.body, color: COLORS.text },
   itemNameChecked: { textDecorationLine: 'line-through', color: COLORS.textMuted },
-  itemFrom: { color: COLORS.textMuted, fontSize: 11, marginTop: 2 },
-  qty: { color: COLORS.primaryLight, fontSize: 14, fontWeight: '800' },
+  itemFrom: { ...TYPE.footnote, fontWeight: '400', color: COLORS.textMuted, marginTop: 2 },
+  qty: { ...TYPE.callout, color: COLORS.textSecondary, fontVariant: ['tabular-nums'] },
 
-  addBar: { flexDirection: 'row', gap: 8, padding: SPACING.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.border, backgroundColor: COLORS.background },
-  input: { flex: 1, backgroundColor: COLORS.surface, borderRadius: RADIUS.pill, paddingHorizontal: SPACING.md, paddingVertical: 11, color: COLORS.text, fontSize: 15 },
-  addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  addBar: { paddingTop: SPACING.sm, paddingHorizontal: SPACING.md },
+  addGlass: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 18, paddingRight: 5, paddingVertical: 5 },
+  input: { flex: 1, paddingVertical: 8, color: COLORS.text, ...TYPE.body },
+  addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  addBtnDisabled: { backgroundColor: COLORS.cardElevated },
 
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: COLORS.card, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.lg, paddingBottom: SPACING.xxl },
-  sheetTitle: { ...TYPE.headline, color: COLORS.text },
-  sheetLabel: { ...TYPE.caption, color: COLORS.textMuted, marginTop: SPACING.lg, marginBottom: SPACING.sm },
-  amountInput: { marginTop: SPACING.md, fontSize: 36, fontWeight: '800', color: COLORS.text, paddingVertical: SPACING.sm },
-  saveBtn: { marginTop: SPACING.lg, backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, paddingVertical: 15, alignItems: 'center' },
-  saveText: { color: '#08110D', fontSize: 16, fontWeight: '800' },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  sheetWrap: { marginHorizontal: SPACING.sm },
+  sheetBacking: { borderRadius: RADIUS.xl, backgroundColor: 'rgba(18,20,28,0.85)', overflow: 'hidden' },
+  sheet: { padding: SPACING.lg, paddingTop: SPACING.sm },
+  grabber: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3, backgroundColor: COLORS.borderStrong, marginBottom: SPACING.md },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.md },
+  sheetTitle: { ...TYPE.title, color: COLORS.text, flex: 1 },
+  sheetClose: { width: 30, height: 30, borderRadius: 15, backgroundColor: COLORS.cardElevated, alignItems: 'center', justifyContent: 'center' },
+  sheetLabel: { ...TYPE.caption, color: COLORS.textSecondary, marginTop: SPACING.lg, marginBottom: SPACING.sm },
+  amountInput: { marginTop: SPACING.md, ...TYPE.number, fontSize: 44, color: COLORS.text, paddingVertical: SPACING.sm },
+  saveBtn: { marginTop: SPACING.lg, backgroundColor: COLORS.primary, borderRadius: RADIUS.pill, paddingVertical: 16, alignItems: 'center' },
+  saveText: { fontSize: 17, fontWeight: '600', color: COLORS.onPrimary },
 });

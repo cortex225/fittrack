@@ -1,19 +1,23 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G, Line, Polygon, Text as SvgText } from 'react-native-svg';
-import { COLORS, SPACING } from '../theme';
+import { COLORS, SPACING, TYPE } from '../theme';
 
 // Regroupement des 17 muscles ExerciseDB en 8 axes lisibles.
 export const SPIDER_GROUPS: { key: string; label: string; muscles: string[] }[] = [
-  { key: 'chest',     label: 'PECS',     muscles: ['chest'] },
-  { key: 'back',      label: 'DOS',      muscles: ['lats', 'middle back', 'lower back', 'traps'] },
-  { key: 'shoulders', label: 'ÉPAULES',  muscles: ['shoulders'] },
-  { key: 'biceps',    label: 'BICEPS',   muscles: ['biceps', 'forearms'] },
-  { key: 'triceps',   label: 'TRICEPS',  muscles: ['triceps'] },
-  { key: 'abs',       label: 'ABDOS',    muscles: ['abdominals'] },
-  { key: 'legs',      label: 'JAMBES',   muscles: ['quadriceps', 'hamstrings', 'glutes', 'abductors', 'adductors'] },
-  { key: 'calves',    label: 'MOLLETS',  muscles: ['calves'] },
+  { key: 'chest',     label: 'Pecs',     muscles: ['chest'] },
+  { key: 'back',      label: 'Dos',      muscles: ['lats', 'middle back', 'lower back', 'traps'] },
+  { key: 'shoulders', label: 'Épaules',  muscles: ['shoulders'] },
+  { key: 'biceps',    label: 'Biceps',   muscles: ['biceps', 'forearms'] },
+  { key: 'triceps',   label: 'Triceps',  muscles: ['triceps'] },
+  { key: 'abs',       label: 'Abdos',    muscles: ['abdominals'] },
+  { key: 'legs',      label: 'Jambes',   muscles: ['quadriceps', 'hamstrings', 'glutes', 'abductors', 'adductors'] },
+  { key: 'calves',    label: 'Mollets',  muscles: ['calves'] },
 ];
+
+// Grille fine et discrète, comme dans l'app Forme.
+const GRID = 'rgba(255,255,255,0.08)';
+const GRID_OUTER = 'rgba(255,255,255,0.16)';
 
 interface Props {
   /** Volume (nb séries) par muscle bas-niveau, ex: { chest: 12, lats: 8, ... }. */
@@ -25,7 +29,7 @@ export default function MuscleSpiderChart({ muscleVolume, size = 260 }: Props) {
   const N = SPIDER_GROUPS.length;
   const cx = size / 2;
   const cy = size / 2;
-  const r = size / 2 - 40; // marge pour les labels
+  const r = size / 2 - 42; // marge pour les libellés
 
   // Agréger par groupe
   const groupValues = SPIDER_GROUPS.map((g) =>
@@ -55,7 +59,7 @@ export default function MuscleSpiderChart({ muscleVolume, size = 260 }: Props) {
             cx={cx}
             cy={cy}
             r={r * f}
-            stroke={i === 3 ? COLORS.border : `${COLORS.border}88`}
+            stroke={i === 3 ? GRID_OUTER : GRID}
             strokeWidth={1}
             fill="none"
           />
@@ -64,33 +68,34 @@ export default function MuscleSpiderChart({ muscleVolume, size = 260 }: Props) {
         {/* Axes radiaux */}
         {SPIDER_GROUPS.map((_, i) => {
           const [x, y] = point(i, 1);
-          return <Line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke={`${COLORS.border}88`} strokeWidth={1} />;
+          return <Line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke={GRID} strokeWidth={1} />;
         })}
 
         {/* Polygone des valeurs */}
         <Polygon
           points={polygonPoints}
-          fill={`${COLORS.primary}55`}
+          fill={`${COLORS.primary}33`}
           stroke={COLORS.primary}
-          strokeWidth={2}
+          strokeWidth={1.75}
+          strokeLinejoin="round"
         />
 
         {/* Points sur le polygone */}
         {groupValues.map((v, i) => {
           const [x, y] = point(i, v / maxValue);
-          return <Circle key={i} cx={x} cy={y} r={3} fill={COLORS.primary} />;
+          return <Circle key={i} cx={x} cy={y} r={2.5} fill={COLORS.primary} />;
         })}
 
-        {/* Labels groupes (en dehors du cercle) */}
+        {/* Libellés des groupes (en dehors du cercle) */}
         {SPIDER_GROUPS.map((g, i) => {
-          const [x, y] = point(i, 1.18);
+          const [x, y] = point(i, 1.2);
           return (
             <G key={g.key}>
               <SvgText
                 x={x}
-                y={y}
-                fontSize="9"
-                fontWeight="900"
+                y={y - 1}
+                fontSize="11"
+                fontWeight="500"
                 fill={COLORS.textSecondary}
                 textAnchor="middle"
               >
@@ -98,10 +103,10 @@ export default function MuscleSpiderChart({ muscleVolume, size = 260 }: Props) {
               </SvgText>
               <SvgText
                 x={x}
-                y={y + 11}
-                fontSize="9"
-                fontWeight="700"
-                fill={COLORS.primary}
+                y={y + 12}
+                fontSize="11"
+                fontWeight="600"
+                fill={COLORS.text}
                 textAnchor="middle"
               >
                 {groupValues[i]}
@@ -116,7 +121,7 @@ export default function MuscleSpiderChart({ muscleVolume, size = 260 }: Props) {
           <View style={[styles.scaleDot, { backgroundColor: COLORS.primary }]} />
           <Text style={styles.scaleText}>Séries complétées</Text>
         </View>
-        <Text style={styles.scaleMax}>Max: {maxValue}</Text>
+        <Text style={styles.scaleMax}>Max {maxValue}</Text>
       </View>
     </View>
   );
@@ -129,10 +134,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
-    paddingHorizontal: SPACING.sm,
+    paddingHorizontal: SPACING.xs,
   },
   scaleItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  scaleDot: { width: 8, height: 8, borderRadius: 4 },
-  scaleText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
-  scaleMax: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700' },
+  scaleDot: { width: 7, height: 7, borderRadius: 4 },
+  scaleText: { ...TYPE.footnote, color: COLORS.textSecondary },
+  scaleMax: { ...TYPE.footnote, color: COLORS.textMuted, fontVariant: ['tabular-nums'] },
 });

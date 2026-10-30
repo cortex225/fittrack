@@ -8,13 +8,14 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, RADIUS, SPACING } from '../theme';
+import { COLORS, RADIUS, SPACING, TYPE } from '../theme';
+import { Glass } from '../components/glass';
+import { PressableScale } from '../components/ui';
 import { useApp } from '../contexts/AppContext';
 import { ChatTurn, MissingApiKeyError, coachChat } from '../services/gemini';
 
@@ -27,7 +28,7 @@ export default function CoachChatScreen() {
   const [messages, setMessages] = useState<ChatTurn[]>([
     {
       role: 'model',
-      text: `Salut ${profile.name} ! Je suis Coach JL-AI. Prêt à tout casser ? 💪`,
+      text: `Salut ${profile.name} ! Je suis Coach JL-AI. Prêt à tout casser ?`,
     },
   ]);
   const [input, setInput] = useState('');
@@ -76,21 +77,28 @@ export default function CoachChatScreen() {
       <StatusBar barStyle="light-content" />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={26} color={COLORS.text} />
-        </TouchableOpacity>
+        <PressableScale onPress={() => navigation.goBack()} hitSlop={12} accessibilityLabel="Retour">
+          <Glass radius={20} style={styles.iconBtn}>
+            <Ionicons name="chevron-back" size={22} color={COLORS.text} />
+          </Glass>
+        </PressableScale>
         <View style={styles.headerCenter}>
-          <View style={styles.avatar}>
-            <Ionicons name="sparkles" size={18} color="#08110D" />
-          </View>
-          <View>
-            <Text style={styles.headerTitle}>COACH JL-AI</Text>
+          <Text style={styles.headerTitle}>Coach JL-AI</Text>
+          <View style={styles.statusRow}>
+            <View
+              style={[
+                styles.statusDot,
+                { backgroundColor: settings.hasApiKey ? COLORS.primary : COLORS.textMuted },
+              ]}
+            />
             <Text style={styles.headerStatus}>{settings.hasApiKey ? 'En ligne' : 'Clé API requise'}</Text>
           </View>
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate('Settings')} hitSlop={12}>
-          <Ionicons name="settings-outline" size={22} color={COLORS.textSecondary} />
-        </TouchableOpacity>
+        <PressableScale onPress={() => navigation.navigate('Settings')} hitSlop={12} accessibilityLabel="Réglages">
+          <Glass radius={20} style={styles.iconBtn}>
+            <Ionicons name="settings-outline" size={20} color={COLORS.text} />
+          </Glass>
+        </PressableScale>
       </View>
 
       <KeyboardAvoidingView
@@ -104,47 +112,55 @@ export default function CoachChatScreen() {
           keyExtractor={(_, i) => String(i)}
           renderItem={({ item }) => {
             const isUser = item.role === 'user';
-            const textColor = isUser ? '#08110D' : COLORS.text;
+            if (isUser) {
+              return (
+                <View style={[styles.bubble, styles.bubbleUser]}>
+                  <Text style={[styles.bubbleText, { color: COLORS.onPrimary }]}>{item.text}</Text>
+                </View>
+              );
+            }
             return (
-              <View
-                style={[
-                  styles.bubble,
-                  isUser ? styles.bubbleUser : styles.bubbleModel,
-                ]}
-              >
-                {isUser ? (
-                  <Text style={[styles.bubbleText, { color: textColor }]}>{item.text}</Text>
-                ) : (
-                  <MarkdownText text={item.text} color={textColor} />
-                )}
-              </View>
+              <Glass radius={22} style={[styles.bubble, styles.bubbleModel]}>
+                <MarkdownText text={item.text} color={COLORS.text} />
+              </Glass>
             );
           }}
-          contentContainerStyle={{ padding: SPACING.md, paddingBottom: SPACING.lg }}
+          contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, paddingBottom: SPACING.lg }}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           ListFooterComponent={
             loading ? (
-              <View style={[styles.bubble, styles.bubbleModel]}>
-                <ActivityIndicator size="small" color={COLORS.primary} />
-              </View>
+              <Glass radius={22} style={[styles.bubble, styles.bubbleModel, styles.typing]}>
+                <ActivityIndicator size="small" color={COLORS.textSecondary} />
+              </Glass>
             ) : undefined
           }
         />
 
         <View style={[styles.inputBar, { paddingBottom: insets.bottom + SPACING.sm }]}>
-          <TextInput
-            value={input}
-            onChangeText={setInput}
-            placeholder={settings.hasApiKey ? 'Pose ta question…' : 'Configure ta clé d\'abord'}
-            placeholderTextColor={COLORS.textMuted}
-            style={styles.input}
-            editable={!loading}
-            onSubmitEditing={send}
-            returnKeyType="send"
-          />
-          <TouchableOpacity style={styles.sendBtn} onPress={send} disabled={loading || !input.trim()}>
-            <Ionicons name="arrow-up" size={22} color="#08110D" />
-          </TouchableOpacity>
+          <Glass radius={RADIUS.pill} style={styles.inputGlass}>
+            <TextInput
+              value={input}
+              onChangeText={setInput}
+              placeholder={settings.hasApiKey ? 'Pose ta question…' : 'Configure ta clé d\'abord'}
+              placeholderTextColor={COLORS.textMuted}
+              style={styles.input}
+              editable={!loading}
+              onSubmitEditing={send}
+              returnKeyType="send"
+            />
+            <PressableScale
+              style={[styles.sendBtn, (loading || !input.trim()) && styles.sendBtnDisabled]}
+              onPress={send}
+              disabled={loading || !input.trim()}
+              accessibilityLabel="Envoyer"
+            >
+              <Ionicons
+                name="arrow-up"
+                size={20}
+                color={loading || !input.trim() ? COLORS.textMuted : COLORS.onPrimary}
+              />
+            </PressableScale>
+          </Glass>
         </View>
       </KeyboardAvoidingView>
     </View>
@@ -161,7 +177,7 @@ function renderInline(text: string, color: string): React.ReactNode[] {
   while ((m = regex.exec(text)) !== null) {
     if (m.index > lastIndex) parts.push(text.slice(lastIndex, m.index));
     parts.push(
-      <Text key={`b-${key++}`} style={{ fontWeight: '900', color }}>
+      <Text key={`b-${key++}`} style={{ fontWeight: '600', color }}>
         {m[1]}
       </Text>
     );
@@ -222,76 +238,66 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.md,
     gap: SPACING.md,
   },
-  headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: { color: COLORS.text, fontSize: 13, fontWeight: '900', letterSpacing: 1.2 },
-  headerStatus: { color: COLORS.primary, fontSize: 10, fontWeight: '700' },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerCenter: { flex: 1, alignItems: 'center' },
+  headerTitle: { ...TYPE.headline, color: COLORS.text },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  headerStatus: { ...TYPE.footnote, color: COLORS.textSecondary },
 
   bubble: {
     maxWidth: '85%',
-    padding: SPACING.md,
-    borderRadius: RADIUS.lg,
-    marginBottom: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 10,
   },
   bubbleUser: {
     alignSelf: 'flex-end',
     backgroundColor: COLORS.primary,
-    borderBottomRightRadius: 6,
+    borderRadius: 22,
+    borderBottomRightRadius: 8,
   },
   bubbleModel: {
     alignSelf: 'flex-start',
-    backgroundColor: COLORS.card,
-    borderBottomLeftRadius: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
-  bubbleText: { color: COLORS.text, fontSize: 14, lineHeight: 20 },
+  typing: { paddingHorizontal: 20 },
+  bubbleText: { ...TYPE.body, color: COLORS.text, lineHeight: 22 },
 
-  mdPara: { fontSize: 14, lineHeight: 20, marginBottom: 2 },
-  mdHeading: { fontSize: 15, lineHeight: 22, fontWeight: '900', marginTop: 4, marginBottom: 4 },
+  mdPara: { fontSize: 16, lineHeight: 22, letterSpacing: -0.15, marginBottom: 2 },
+  mdHeading: { ...TYPE.headline, lineHeight: 23, marginTop: 6, marginBottom: 4 },
   mdListRow: { flexDirection: 'row', gap: 8, marginVertical: 2 },
-  mdMarker: { fontSize: 14, lineHeight: 20, fontWeight: '800', minWidth: 18 },
-  mdItem: { flex: 1, fontSize: 14, lineHeight: 20 },
+  mdMarker: { fontSize: 16, lineHeight: 22, fontWeight: '500', minWidth: 18, opacity: 0.64 },
+  mdItem: { flex: 1, fontSize: 16, lineHeight: 22, letterSpacing: -0.15 },
 
   inputBar: {
+    paddingTop: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+  },
+  inputGlass: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingLeft: 18,
+    paddingRight: 5,
+    paddingVertical: 5,
     gap: 8,
-    padding: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    backgroundColor: COLORS.background,
   },
   input: {
     flex: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.pill,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 10,
+    paddingVertical: 8,
     color: COLORS.text,
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    ...TYPE.body,
   },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  sendBtnDisabled: { backgroundColor: COLORS.cardElevated },
 });

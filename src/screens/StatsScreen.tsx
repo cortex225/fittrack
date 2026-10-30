@@ -6,13 +6,12 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, RADIUS, SPACING } from '../theme';
+import { COLORS, RADIUS, SPACING, TYPE } from '../theme';
 import { useApp } from '../contexts/AppContext';
 import {
   deleteWorkout,
@@ -26,17 +25,25 @@ import {
 import { LEVELS } from '../data/library';
 import { WeightEntry, Workout } from '../types';
 import MuscleSpiderChart from '../components/MuscleSpiderChart';
+import { Glass } from '../components/glass';
+import { Card, PressableScale, SectionLabel, Segmented } from '../components/ui';
 
 const BAR_HEIGHT = 96;
+const HAIRLINE = StyleSheet.hairlineWidth;
 
 type Period = '7d' | '30d' | '365d' | 'all';
 
 const PERIOD_LABELS: Record<Period, { label: string; days: number | null }> = {
-  '7d':   { label: '7J',    days: 7 },
-  '30d':  { label: '30J',   days: 30 },
-  '365d': { label: '1 AN',  days: 365 },
-  'all':  { label: 'TOUT',  days: null },
+  '7d':   { label: '7 jours',  days: 7 },
+  '30d':  { label: '30 jours', days: 30 },
+  '365d': { label: '1 an',     days: 365 },
+  'all':  { label: 'Tout',     days: null },
 };
+
+const PERIOD_OPTIONS = (Object.keys(PERIOD_LABELS) as Period[]).map((p) => ({
+  value: p,
+  label: PERIOD_LABELS[p].label,
+}));
 
 export default function StatsScreen() {
   const insets = useSafeAreaInsets();
@@ -153,94 +160,92 @@ export default function StatsScreen() {
     return parts.length === 3 ? `${parts[2]}/${parts[1]}` : date;
   };
 
+  const latestWeight = last10.length ? last10[last10.length - 1].weight : null;
+  const historyShown = filteredWorkouts.slice(0, 10);
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" />
 
-      <View style={styles.header}>
-        <Text style={styles.title}>Stats</Text>
-        <View style={styles.levelBadge}>
-          <Ionicons name="flash" size={12} color={COLORS.accent} />
-          <Text style={styles.levelBadgeText}>NIV. {gamification.level}</Text>
-        </View>
-      </View>
-
       <ScrollView
-        contentContainerStyle={{ padding: SPACING.md, paddingBottom: insets.bottom + 110 }}
+        contentContainerStyle={{
+          paddingHorizontal: SPACING.md,
+          paddingTop: SPACING.sm,
+          paddingBottom: insets.bottom + 120,
+        }}
         showsVerticalScrollIndicator={false}
       >
-        {/* XP progression */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
+        {/* Grand titre */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Stats</Text>
+          <Text style={styles.subtitle}>
+            Niveau {gamification.level} · {currentLevel.name}
+          </Text>
+        </View>
+
+        {/* Progression XP */}
+        <Card>
+          <View style={styles.rowBetween}>
             <Text style={styles.cardTitle}>Progression</Text>
             <Text style={styles.cardSub}>
               {currentLevel.name} → {nextLevel.name}
             </Text>
           </View>
-          <View style={styles.xpRow}>
-            <Text style={styles.xpCurrent}>{gamification.xp}</Text>
-            <Text style={styles.xpTarget}> / {nextLevel.xpNeeded} XP</Text>
+          <View style={styles.bigNumberRow}>
+            <Text style={styles.bigNumber}>{gamification.xp.toLocaleString('fr-CA')}</Text>
+            <Text style={styles.bigUnit}> / {nextLevel.xpNeeded.toLocaleString('fr-CA')} XP</Text>
           </View>
-          <View style={styles.bar}>
-            <View style={[styles.barFill, { width: `${xpProgress}%`, backgroundColor: COLORS.accent }]} />
+          <View style={styles.track}>
+            <View style={[styles.trackFill, { width: `${xpProgress}%` }]} />
           </View>
           <View style={styles.levelLadder}>
             {LEVELS.map((l) => {
               const reached = gamification.xp >= l.xpNeeded;
               return (
-                <View key={l.level} style={styles.ladderItem}>
-                  <View
-                    style={[
-                      styles.ladderDot,
-                      reached && { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-                    ]}
-                  >
-                    <Text style={[styles.ladderNum, reached && { color: '#08110D' }]}>{l.level}</Text>
-                  </View>
+                <View
+                  key={l.level}
+                  style={[styles.ladderDot, reached && styles.ladderDotReached]}
+                  accessibilityLabel={`Niveau ${l.level}${reached ? ', atteint' : ''}`}
+                >
+                  <Text style={[styles.ladderNum, reached && { color: COLORS.onPrimary }]}>{l.level}</Text>
                 </View>
               );
             })}
           </View>
-        </View>
+        </Card>
 
         {/* Filtres temporels */}
-        <View style={styles.periodRow}>
-          {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => {
-            const active = period === p;
-            return (
-              <TouchableOpacity
-                key={p}
-                style={[styles.periodChip, active && styles.periodChipActive]}
-                onPress={() => setPeriod(p)}
-              >
-                <Text style={[styles.periodChipText, active && { color: '#08110D' }]}>
-                  {PERIOD_LABELS[p].label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+        <View style={styles.periodWrap}>
+          <Segmented options={PERIOD_OPTIONS} value={period} onChange={setPeriod} />
         </View>
 
         {/* Stats du training filtrées */}
-        <View style={styles.statGrid}>
-          <StatCard icon="barbell-outline" value={totalWorkouts} label="Séances" />
-          <StatCard icon="time-outline" value={`${totalMinutes}`} label="Minutes" />
-          <StatCard icon="repeat-outline" value={totalSets} label="Séries" />
-          <StatCard
-            icon="trending-up-outline"
-            value={totalVolume > 999 ? `${(totalVolume / 1000).toFixed(1)}k` : totalVolume}
-            label="Vol. (kg)"
-          />
-        </View>
+        <Glass style={styles.statGrid}>
+          <View style={styles.statRow}>
+            <Stat label="Séances" value={totalWorkouts} />
+            <View style={styles.vSep} />
+            <Stat label="Durée" value={totalMinutes} unit="min" />
+          </View>
+          <View style={styles.hSep} />
+          <View style={styles.statRow}>
+            <Stat label="Séries" value={totalSets} />
+            <View style={styles.vSep} />
+            <Stat
+              label="Volume"
+              value={totalVolume > 999 ? `${(totalVolume / 1000).toFixed(1)}k` : totalVolume}
+              unit="kg"
+            />
+          </View>
+        </Glass>
 
         {/* Spider chart muscles */}
-        <Text style={styles.sectionTitle}>MUSCLES TRAVAILLÉS</Text>
-        <View style={styles.card}>
+        <SectionLabel>Muscles travaillés</SectionLabel>
+        <Card>
           {Object.keys(muscleVolume).length === 0 ? (
             <View style={styles.empty}>
-              <Ionicons name="body-outline" size={32} color={COLORS.border} />
+              <Ionicons name="body-outline" size={28} color={COLORS.textMuted} />
               <Text style={styles.emptyText}>
-                Aucune séance loggée sur cette période. Lance une séance pour voir ton équilibre.
+                Aucune séance enregistrée sur cette période. Lance une séance pour voir ton équilibre.
               </Text>
             </View>
           ) : (
@@ -248,108 +253,145 @@ export default function StatsScreen() {
               <MuscleSpiderChart muscleVolume={muscleVolume} size={280} />
               {topMuscle && (
                 <View style={styles.topMuscleRow}>
-                  <Ionicons name="flame" size={14} color={COLORS.primary} />
-                  <Text style={styles.topMuscleText}>
-                    Top : <Text style={{ color: COLORS.text, fontWeight: '900' }}>{topMuscle[0]}</Text> · {topMuscle[1]} séries
+                  <Text style={styles.topMuscleLabel}>Le plus travaillé</Text>
+                  <Text style={styles.topMuscleValue}>
+                    {topMuscle[0]}
+                    <Text style={styles.topMuscleUnit}> · {topMuscle[1]} séries</Text>
                   </Text>
                 </View>
               )}
             </>
           )}
-        </View>
+        </Card>
 
-        <TouchableOpacity style={styles.checkInCard} onPress={() => navigation.navigate('CheckIn')} activeOpacity={0.9}>
-          <View style={styles.checkInIcon}>
-            <Ionicons name="body-outline" size={20} color={COLORS.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.checkInTitle}>Bilan des 2 semaines</Text>
-            <Text style={styles.checkInSub}>Poids, mensurations et calories ajustées</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
-        </TouchableOpacity>
+        {/* Bilan */}
+        <SectionLabel>Bilan</SectionLabel>
+        <PressableScale onPress={() => navigation.navigate('CheckIn')} scaleTo={0.98} accessibilityRole="button">
+          <Glass style={styles.listRow}>
+            <View style={styles.rowIcon}>
+              <Ionicons name="body-outline" size={20} color={COLORS.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>Bilan des 2 semaines</Text>
+              <Text style={styles.rowSub}>Poids, mensurations et calories ajustées</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+          </Glass>
+        </PressableScale>
 
-        {/* Weight */}
-        <Text style={styles.sectionTitle}>POIDS</Text>
-        <View style={styles.card}>
+        {/* Poids */}
+        <SectionLabel>Poids</SectionLabel>
+        <Card>
+          <View style={styles.rowBetween}>
+            <Text style={styles.cardTitle}>Dernière pesée</Text>
+            {latestWeight !== null && (
+              <Text style={styles.cardSub}>{formatDateLabel(last10[last10.length - 1].date)}</Text>
+            )}
+          </View>
+          {latestWeight !== null && (
+            <View style={styles.bigNumberRow}>
+              <Text style={styles.bigNumber}>{latestWeight}</Text>
+              <Text style={styles.bigUnit}> kg</Text>
+            </View>
+          )}
+
           <View style={styles.weightInputRow}>
-            <TextInput
-              style={styles.weightInput}
-              keyboardType="decimal-pad"
-              placeholder="0.0"
-              placeholderTextColor={COLORS.textMuted}
-              value={weightInput}
-              onChangeText={setWeightInput}
-            />
-            <Text style={styles.weightUnit}>kg</Text>
-            <TouchableOpacity style={styles.saveBtn} onPress={saveWeight} disabled={saving}>
-              <Ionicons name={saving ? 'hourglass-outline' : 'add'} size={18} color="#08110D" />
-              <Text style={styles.saveBtnText}>SAUVER</Text>
-            </TouchableOpacity>
+            <View style={styles.inputField}>
+              <TextInput
+                style={styles.weightInput}
+                keyboardType="decimal-pad"
+                placeholder="0.0"
+                placeholderTextColor={COLORS.textMuted}
+                value={weightInput}
+                onChangeText={setWeightInput}
+                accessibilityLabel="Poids du jour en kilogrammes"
+              />
+              <Text style={styles.weightUnit}>kg</Text>
+            </View>
+            <PressableScale
+              style={[styles.primaryBtn, saving && { opacity: 0.6 }]}
+              onPress={saveWeight}
+              disabled={saving}
+              accessibilityRole="button"
+            >
+              <Text style={styles.primaryBtnText}>{saving ? 'Enregistrement…' : 'Enregistrer'}</Text>
+            </PressableScale>
           </View>
 
           {last10.length === 0 ? (
             <View style={styles.empty}>
-              <Ionicons name="analytics-outline" size={32} color={COLORS.border} />
+              <Ionicons name="analytics-outline" size={28} color={COLORS.textMuted} />
               <Text style={styles.emptyText}>Aucune donnée de poids</Text>
             </View>
           ) : (
             <>
               <View style={styles.chart}>
-                {last10.map((e, i) => (
-                  <View key={e.date + i} style={styles.barCol}>
-                    <Text style={styles.barLabel}>{e.weight}</Text>
-                    <View style={styles.barTrack}>
-                      <View
-                        style={[
-                          styles.weightBar,
-                          {
-                            height: barHeight(e.weight),
-                            backgroundColor: i === last10.length - 1 ? COLORS.primary : COLORS.primaryDark,
-                          },
-                        ]}
-                      />
+                {last10.map((e, i) => {
+                  const last = i === last10.length - 1;
+                  return (
+                    <View key={e.date + i} style={styles.barCol}>
+                      <Text style={[styles.barLabel, last && { color: COLORS.text }]}>{e.weight}</Text>
+                      <View style={styles.barTrack}>
+                        <View
+                          style={[
+                            styles.weightBar,
+                            {
+                              height: barHeight(e.weight),
+                              backgroundColor: last ? COLORS.primary : `${COLORS.primary}4D`,
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text style={styles.barDate}>{formatDateLabel(e.date)}</Text>
                     </View>
-                    <Text style={styles.barDate}>{formatDateLabel(e.date)}</Text>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
               <View style={styles.chartLegend}>
-                <Text style={styles.chartLegendText}>
-                  Min {minW} kg · Max {maxW} kg · Δ {(maxW - minW).toFixed(1)} kg
-                </Text>
+                <Legend label="Min" value={`${minW} kg`} />
+                <Legend label="Max" value={`${maxW} kg`} />
+                <Legend label="Écart" value={`${(maxW - minW).toFixed(1)} kg`} />
               </View>
             </>
           )}
-        </View>
+        </Card>
 
-        {/* Workout history (filtré sur la période) */}
+        {/* Historique (filtré sur la période) */}
         {filteredWorkouts.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>HISTORIQUE ({filteredWorkouts.length})</Text>
-            {filteredWorkouts.slice(0, 10).map((w) => {
-              const completedSets = w.exercises.reduce(
-                (a, e) => a + e.sets.filter((s) => s.completed).length,
-                0
-              );
-              return (
-                <TouchableOpacity
-                  key={w.id}
-                  style={styles.workoutCard}
-                  onLongPress={() => removeWorkout(w)}
-                >
-                  <View style={styles.workoutHeader}>
-                    <Text style={styles.workoutName} numberOfLines={1}>{w.name}</Text>
-                    <Text style={styles.workoutDate}>{formatDate(w.date)}</Text>
+            <SectionLabel
+              hint={`${filteredWorkouts.length} séance${filteredWorkouts.length > 1 ? 's' : ''}`}
+            >
+              Historique
+            </SectionLabel>
+            <Glass>
+              {historyShown.map((w, idx) => {
+                const completedSets = w.exercises.reduce(
+                  (a, e) => a + e.sets.filter((s) => s.completed).length,
+                  0
+                );
+                return (
+                  <View key={w.id}>
+                    {idx > 0 && <View style={styles.rowSep} />}
+                    <PressableScale
+                      style={styles.workoutRow}
+                      onLongPress={() => removeWorkout(w)}
+                      scaleTo={0.98}
+                      accessibilityHint="Appui long pour supprimer"
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.rowTitle} numberOfLines={1}>{w.name}</Text>
+                        <Text style={styles.rowSub}>
+                          {formatDuration(w.duration)} · {w.exercises.length} ex. · {completedSets} séries
+                        </Text>
+                      </View>
+                      <Text style={styles.workoutDate}>{formatDate(w.date)}</Text>
+                    </PressableScale>
                   </View>
-                  <View style={styles.workoutMeta}>
-                    <Meta icon="time-outline" text={formatDuration(w.duration)} />
-                    <Meta icon="fitness-outline" text={`${w.exercises.length} ex.`} />
-                    <Meta icon="checkmark-outline" text={`${completedSets} séries`} />
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+                );
+              })}
+            </Glass>
+            <Text style={styles.footnote}>Appui long sur une séance pour la supprimer.</Text>
           </>
         )}
       </ScrollView>
@@ -357,189 +399,158 @@ export default function StatsScreen() {
   );
 }
 
-const StatCard: React.FC<{ icon: any; value: string | number; label: string }> = ({ icon, value, label }) => (
-  <View style={styles.statCard}>
-    <Ionicons name={icon} size={20} color={COLORS.primary} />
-    <Text style={styles.statValue}>{value}</Text>
+const Stat: React.FC<{ label: string; value: string | number; unit?: string }> = ({ label, value, unit }) => (
+  <View style={styles.statCell}>
     <Text style={styles.statLabel}>{label}</Text>
+    <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
+      {value}
+      {unit ? <Text style={styles.statUnit}> {unit}</Text> : null}
+    </Text>
   </View>
 );
 
-const Meta: React.FC<{ icon: any; text: string }> = ({ icon, text }) => (
-  <View style={styles.metaItem}>
-    <Ionicons name={icon} size={12} color={COLORS.textSecondary} />
-    <Text style={styles.metaText}>{text}</Text>
+const Legend: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <View style={styles.legendItem}>
+    <Text style={styles.legendLabel}>{label}</Text>
+    <Text style={styles.legendValue}>{value}</Text>
   </View>
 );
 
 const styles = StyleSheet.create({
-  checkInCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    padding: SPACING.md,
-    borderRadius: RADIUS.xl,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.primarySoft,
-    marginBottom: SPACING.md,
-  },
-  checkInIcon: { width: 40, height: 40, borderRadius: RADIUS.lg, backgroundColor: COLORS.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  checkInTitle: { color: COLORS.text, fontSize: 15, fontWeight: '800' },
-  checkInSub: { color: COLORS.textMuted, fontSize: 12, marginTop: 2 },
-
   root: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-  },
-  title: { color: COLORS.text, fontSize: 24, fontWeight: '800' },
-  levelBadge: {
-    flexDirection: 'row',
-    gap: 4,
-    backgroundColor: `${COLORS.accent}22`,
-    borderColor: `${COLORS.accent}44`,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: RADIUS.pill,
-    alignItems: 'center',
-  },
-  levelBadgeText: { color: COLORS.accent, fontWeight: '900', fontSize: 11, letterSpacing: 0.8 },
 
-  sectionTitle: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.sm,
-  },
-  card: {
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardTitle: { color: COLORS.text, fontSize: 14, fontWeight: '800' },
-  cardSub: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
+  header: { marginBottom: SPACING.lg, paddingHorizontal: SPACING.xs },
+  title: { ...TYPE.largeTitle, color: COLORS.text },
+  subtitle: { ...TYPE.callout, color: COLORS.textSecondary, marginTop: 2 },
 
-  xpRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: SPACING.sm },
-  xpCurrent: { color: COLORS.accent, fontSize: 28, fontWeight: '900' },
-  xpTarget: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '700' },
-  bar: { height: 6, backgroundColor: COLORS.surface, borderRadius: 3, overflow: 'hidden', marginTop: 4 },
-  barFill: { height: '100%' },
-  levelLadder: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardTitle: { ...TYPE.headline, color: COLORS.text },
+  cardSub: { ...TYPE.caption, color: COLORS.textSecondary },
+
+  bigNumberRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: SPACING.sm },
+  bigNumber: { ...TYPE.number, fontSize: 40, color: COLORS.text },
+  bigUnit: { ...TYPE.callout, color: COLORS.textSecondary },
+
+  track: {
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 3,
+    overflow: 'hidden',
     marginTop: SPACING.md,
   },
-  ladderItem: { alignItems: 'center' },
+  trackFill: { height: '100%', borderRadius: 3, backgroundColor: COLORS.primary },
+  levelLadder: { flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACING.md },
   ladderDot: {
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderWidth: HAIRLINE,
+    borderColor: COLORS.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ladderNum: { color: COLORS.textSecondary, fontWeight: '800', fontSize: 10 },
+  ladderDotReached: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  ladderNum: { ...TYPE.footnote, color: COLORS.textSecondary, fontVariant: ['tabular-nums'] },
 
-  weightInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  weightInput: {
-    flex: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    color: COLORS.text,
-    fontSize: 22,
-    fontWeight: '800',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  weightUnit: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '700' },
-  saveBtn: {
-    flexDirection: 'row',
-    gap: 6,
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 10,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-  },
-  saveBtnText: { color: '#08110D', fontWeight: '900', fontSize: 11, letterSpacing: 0.8 },
+  periodWrap: { marginTop: SPACING.lg, marginBottom: SPACING.md },
 
-  empty: { alignItems: 'center', padding: SPACING.lg, gap: 6 },
-  emptyText: { color: COLORS.textSecondary, fontSize: 12, textAlign: 'center' },
+  statGrid: {},
+  statRow: { flexDirection: 'row' },
+  statCell: { flex: 1, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md },
+  statLabel: { ...TYPE.caption, color: COLORS.textSecondary },
+  statValue: { ...TYPE.number, fontSize: 28, color: COLORS.text, marginTop: 2 },
+  statUnit: { ...TYPE.callout, color: COLORS.textSecondary },
+  hSep: { height: HAIRLINE, backgroundColor: COLORS.border, marginHorizontal: SPACING.lg },
+  vSep: { width: HAIRLINE, backgroundColor: COLORS.border, marginVertical: SPACING.md },
 
-  periodRow: { flexDirection: 'row', gap: 6, marginTop: SPACING.lg, marginBottom: SPACING.sm },
-  periodChip: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: RADIUS.pill,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-  },
-  periodChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  periodChipText: { color: COLORS.textSecondary, fontWeight: '900', fontSize: 11, letterSpacing: 0.8 },
+  empty: { alignItems: 'center', paddingVertical: SPACING.lg, paddingHorizontal: SPACING.md, gap: SPACING.sm },
+  emptyText: { ...TYPE.callout, fontWeight: '400', color: COLORS.textSecondary, textAlign: 'center' },
 
   topMuscleRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 6,
-    marginTop: SPACING.sm,
-    padding: SPACING.sm,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
+    marginTop: SPACING.md,
+    paddingTop: SPACING.md,
+    borderTopWidth: HAIRLINE,
+    borderTopColor: COLORS.border,
+  },
+  topMuscleLabel: { ...TYPE.body, color: COLORS.textSecondary },
+  topMuscleValue: { ...TYPE.headline, color: COLORS.text, textTransform: 'capitalize' },
+  topMuscleUnit: { ...TYPE.callout, color: COLORS.textSecondary, textTransform: 'none' },
+
+  listRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 14,
+  },
+  rowIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  topMuscleText: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '700' },
+  rowTitle: { ...TYPE.headline, color: COLORS.text },
+  rowSub: { ...TYPE.caption, fontWeight: '400', color: COLORS.textSecondary, marginTop: 2 },
+  rowSep: { height: HAIRLINE, backgroundColor: COLORS.border, marginLeft: SPACING.lg },
 
-  chart: { flexDirection: 'row', justifyContent: 'space-between', height: BAR_HEIGHT + 40, marginTop: SPACING.md },
-  barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', marginHorizontal: 1 },
-  barLabel: { fontSize: 9, color: COLORS.textSecondary, marginBottom: 3 },
-  barTrack: { width: '100%', alignItems: 'center', justifyContent: 'flex-end', height: BAR_HEIGHT },
-  weightBar: { width: '70%', borderTopLeftRadius: 4, borderTopRightRadius: 4, minHeight: 4 },
-  barDate: { fontSize: 9, color: COLORS.textMuted, marginTop: 4, fontWeight: '700' },
-  chartLegend: { marginTop: SPACING.sm, alignItems: 'center', borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: SPACING.sm },
-  chartLegendText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '600' },
-
-  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: SPACING.md },
-  statCard: {
+  weightInputRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginTop: SPACING.md },
+  inputField: {
     flex: 1,
-    backgroundColor: COLORS.card,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: SPACING.md,
+    height: 48,
   },
-  statValue: { color: COLORS.text, fontSize: 22, fontWeight: '900' },
-  statLabel: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
+  weightInput: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    paddingVertical: 0,
+  },
+  weightUnit: { ...TYPE.callout, color: COLORS.textSecondary },
+  primaryBtn: {
+    height: 48,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryBtnText: { color: COLORS.onPrimary, fontSize: 17, fontWeight: '600' },
 
-  workoutCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 8,
+  chart: { flexDirection: 'row', justifyContent: 'space-between', height: BAR_HEIGHT + 40, marginTop: SPACING.lg },
+  barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', marginHorizontal: 1 },
+  barLabel: { fontSize: 10, fontWeight: '500', color: COLORS.textMuted, marginBottom: 4, fontVariant: ['tabular-nums'] },
+  barTrack: { width: '100%', alignItems: 'center', justifyContent: 'flex-end', height: BAR_HEIGHT },
+  weightBar: { width: 12, borderRadius: 6, minHeight: 6 },
+  barDate: { fontSize: 10, fontWeight: '500', color: COLORS.textMuted, marginTop: 6, fontVariant: ['tabular-nums'] },
+  chartLegend: {
+    flexDirection: 'row',
+    marginTop: SPACING.md,
+    paddingTop: SPACING.md,
+    borderTopWidth: HAIRLINE,
+    borderTopColor: COLORS.border,
   },
-  workoutHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  workoutName: { color: COLORS.text, fontSize: 14, fontWeight: '800', flex: 1, marginRight: 8 },
-  workoutDate: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
-  workoutMeta: { flexDirection: 'row', gap: SPACING.md },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { color: COLORS.textSecondary, fontSize: 11 },
+  legendItem: { flex: 1 },
+  legendLabel: { ...TYPE.footnote, color: COLORS.textMuted },
+  legendValue: { ...TYPE.callout, color: COLORS.text, marginTop: 2, fontVariant: ['tabular-nums'] },
+
+  workoutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: 14,
+  },
+  workoutDate: { ...TYPE.caption, color: COLORS.textMuted },
+  footnote: { ...TYPE.footnote, color: COLORS.textMuted, marginTop: SPACING.sm, paddingHorizontal: SPACING.lg },
 });

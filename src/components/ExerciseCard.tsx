@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, RADIUS, SPACING } from '../theme';
+import { COLORS, RADIUS, SPACING, TYPE } from '../theme';
+import { Glass } from './glass';
+import { PressableScale } from './ui';
 import { ExerciseDef, exerciseImageUrls } from '../data/exercises';
 import {
   LEVEL_COLOR,
@@ -38,14 +40,14 @@ export function AnimatedExerciseImage({ exercise, height = 180, rounded = true, 
     {
       height,
       borderRadius: rounded ? RADIUS.lg : 0,
-      backgroundColor: variant === 'product' ? '#FFFFFF' : COLORS.surface,
+      backgroundColor: variant === 'product' ? '#F5F5F7' : COLORS.surface,
     },
   ];
 
   if (urls.length === 0 || errored) {
     return (
       <View style={[...wrapStyle, styles.imageFallback]}>
-        <Ionicons name="barbell-outline" size={32} color={COLORS.textMuted} />
+        <Ionicons name="barbell-outline" size={Math.min(28, Math.max(18, height / 4))} color={COLORS.textMuted} />
       </View>
     );
   }
@@ -79,59 +81,39 @@ interface ExerciseCardProps {
 export default function ExerciseCard({ exercise, onPress, compact = false }: ExerciseCardProps) {
   if (compact) {
     return (
-      <TouchableOpacity style={styles.cardCompact} onPress={onPress} activeOpacity={0.85}>
-        <View style={styles.thumbWrap}>
-          <AnimatedExerciseImage exercise={exercise} height={72} rounded />
-        </View>
-        <View style={{ flex: 1, gap: 4 }}>
-          <Text style={styles.nameCompact} numberOfLines={2}>{exercise.name}</Text>
-          <View style={styles.metaRow}>
-            <View style={[styles.levelDot, { backgroundColor: LEVEL_COLOR[exercise.level] }]} />
-            <Text style={styles.metaText}>{levelFR(exercise.level)}</Text>
-            <Text style={styles.metaSep}>·</Text>
-            <Text style={styles.metaText}>{equipmentFR(exercise.equipment)}</Text>
+      <PressableScale onPress={onPress} scaleTo={0.98} style={styles.compactOuter} accessibilityRole="button">
+        <Glass radius={RADIUS.xl} style={styles.cardCompact}>
+          <View style={styles.thumbWrap}>
+            <AnimatedExerciseImage exercise={exercise} height={68} rounded />
           </View>
-          <View style={styles.musclesRow}>
-            {exercise.primaryMuscles.slice(0, 3).map((m) => (
-              <View key={m} style={[styles.musclePill, styles.musclePillPrimary]}>
-                <Text style={styles.musclePillText}>{muscleFR(m)}</Text>
-              </View>
-            ))}
+          <View style={{ flex: 1, gap: 3 }}>
+            <Text style={styles.nameCompact} numberOfLines={2}>{exercise.name}</Text>
+            <Text style={styles.musclesText} numberOfLines={1}>
+              {exercise.primaryMuscles.slice(0, 3).map(muscleFR).join(' · ')}
+            </Text>
+            <View style={styles.metaRow}>
+              <View style={[styles.levelDot, { backgroundColor: LEVEL_COLOR[exercise.level] }]} />
+              <Text style={styles.metaText}>{levelFR(exercise.level)}</Text>
+              <Text style={styles.metaSep}>·</Text>
+              <Text style={styles.metaText}>{equipmentFR(exercise.equipment)}</Text>
+            </View>
           </View>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
-      </TouchableOpacity>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+        </Glass>
+      </PressableScale>
     );
   }
 
   return (
-    <View style={styles.card}>
+    <Glass radius={RADIUS.xl}>
       <AnimatedExerciseImage exercise={exercise} height={220} rounded={false} />
       <View style={styles.body}>
-        <View style={styles.headerRow}>
-          <Text style={styles.name} numberOfLines={2}>{exercise.name}</Text>
-          <View style={[styles.levelBadge, { backgroundColor: `${LEVEL_COLOR[exercise.level]}22`, borderColor: LEVEL_COLOR[exercise.level] }]}>
-            <Text style={[styles.levelBadgeText, { color: LEVEL_COLOR[exercise.level] }]}>
-              {levelFR(exercise.level)}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.musclesSection}>
-          {exercise.primaryMuscles.map((m) => (
-            <View key={`p-${m}`} style={[styles.musclePill, styles.musclePillPrimary]}>
-              <Text style={styles.musclePillText}>{muscleFR(m)}</Text>
-            </View>
-          ))}
-          {exercise.secondaryMuscles.map((m) => (
-            <View key={`s-${m}`} style={[styles.musclePill, styles.musclePillSecondary]}>
-              <Text style={styles.musclePillSubtleText}>{muscleFR(m)}</Text>
-            </View>
-          ))}
-        </View>
+        <Text style={styles.name} numberOfLines={2}>{exercise.name}</Text>
 
         <View style={styles.metaRow}>
-          <Ionicons name="barbell-outline" size={13} color={COLORS.textSecondary} />
+          <View style={[styles.levelDot, { backgroundColor: LEVEL_COLOR[exercise.level] }]} />
+          <Text style={styles.metaText}>{levelFR(exercise.level)}</Text>
+          <Text style={styles.metaSep}>·</Text>
           <Text style={styles.metaText}>{equipmentFR(exercise.equipment)}</Text>
           {exercise.mechanic && (
             <>
@@ -141,9 +123,22 @@ export default function ExerciseCard({ exercise, onPress, compact = false }: Exe
           )}
         </View>
 
+        <View style={styles.musclesSection}>
+          {exercise.primaryMuscles.map((m) => (
+            <View key={`p-${m}`} style={[styles.musclePill, styles.musclePillPrimary]}>
+              <Text style={styles.musclePillText}>{muscleFR(m)}</Text>
+            </View>
+          ))}
+          {exercise.secondaryMuscles.map((m) => (
+            <View key={`s-${m}`} style={styles.musclePill}>
+              <Text style={styles.musclePillSubtleText}>{muscleFR(m)}</Text>
+            </View>
+          ))}
+        </View>
+
         {exercise.instructions.length > 0 && (
           <View style={styles.instructions}>
-            <Text style={styles.instructionsTitle}>EXÉCUTION</Text>
+            <Text style={styles.instructionsTitle}>Exécution</Text>
             {exercise.instructions.map((step, i) => (
               <View key={i} style={styles.instructionRow}>
                 <Text style={styles.instructionNum}>{i + 1}</Text>
@@ -153,7 +148,7 @@ export default function ExerciseCard({ exercise, onPress, compact = false }: Exe
           </View>
         )}
       </View>
-    </View>
+    </Glass>
   );
 }
 
@@ -167,62 +162,42 @@ const styles = StyleSheet.create({
   image: { position: 'absolute', width: '100%', height: '100%' },
   imageFallback: { alignItems: 'center', justifyContent: 'center' },
 
-  // Compact (list item)
+  // Compact (ligne de liste)
+  compactOuter: { marginBottom: SPACING.sm },
   cardCompact: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.md,
-    padding: SPACING.sm,
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: SPACING.sm,
+    gap: 14,
+    padding: 10,
+    paddingRight: SPACING.md,
   },
-  thumbWrap: { width: 72, height: 72, borderRadius: RADIUS.md, overflow: 'hidden' },
-  nameCompact: { color: COLORS.text, fontSize: 14, fontWeight: '800' },
+  thumbWrap: { width: 68, height: 68, borderRadius: RADIUS.lg, overflow: 'hidden' },
+  nameCompact: { ...TYPE.headline, color: COLORS.text },
+  musclesText: { ...TYPE.caption, color: COLORS.textSecondary },
 
-  // Detailed
-  card: {
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    overflow: 'hidden',
-  },
-  body: { padding: SPACING.md, gap: SPACING.sm },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  name: { color: COLORS.text, fontSize: 18, fontWeight: '900', flex: 1 },
-  levelBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.pill,
-    borderWidth: 1,
-  },
-  levelBadgeText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  // Détaillé
+  body: { padding: SPACING.lg, gap: SPACING.sm },
+  name: { ...TYPE.title, color: COLORS.text },
 
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
-  metaText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '600' },
-  metaSep: { color: COLORS.textMuted, fontSize: 11 },
-
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
+  metaText: { ...TYPE.footnote, color: COLORS.textMuted },
+  metaSep: { ...TYPE.footnote, color: COLORS.textMuted },
   levelDot: { width: 6, height: 6, borderRadius: 3 },
 
-  musclesSection: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  musclesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  musclePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.pill, borderWidth: 1 },
-  musclePillPrimary: { backgroundColor: `${COLORS.primary}22`, borderColor: COLORS.primary },
-  musclePillSecondary: { backgroundColor: COLORS.surface, borderColor: COLORS.border },
-  musclePillText: { color: COLORS.primary, fontSize: 10, fontWeight: '800' },
-  musclePillSubtleText: { color: COLORS.textSecondary, fontSize: 10, fontWeight: '700' },
-
-  instructions: { marginTop: 4, gap: 6 },
-  instructionsTitle: { color: COLORS.textMuted, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
-  instructionRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  instructionNum: {
-    color: COLORS.primary,
-    fontWeight: '900',
-    fontSize: 12,
-    minWidth: 16,
+  musclesSection: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  musclePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surface,
   },
-  instructionText: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 18, flex: 1 },
+  musclePillPrimary: { backgroundColor: COLORS.primarySoft },
+  musclePillText: { ...TYPE.footnote, color: COLORS.primaryLight },
+  musclePillSubtleText: { ...TYPE.footnote, color: COLORS.textSecondary },
+
+  instructions: { marginTop: SPACING.sm, gap: 8 },
+  instructionsTitle: { ...TYPE.overline, color: COLORS.textSecondary },
+  instructionRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  instructionNum: { ...TYPE.callout, color: COLORS.textMuted, minWidth: 16, fontVariant: ['tabular-nums'] },
+  instructionText: { ...TYPE.body, fontSize: 15, lineHeight: 21, color: COLORS.textSecondary, flex: 1 },
 });

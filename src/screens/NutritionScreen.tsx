@@ -6,18 +6,21 @@ import {
   Pressable,
   ScrollView,
   StatusBar,
+  StyleProp,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
+  ViewStyle,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { COLORS, RADIUS, SPACING } from '../theme';
+import { COLORS, RADIUS, SPACING, TYPE } from '../theme';
+import { AppBackground, Glass } from '../components/glass';
+import { AnimatedNumber, Card, PressableScale, Segmented } from '../components/ui';
 import { useApp } from '../contexts/AppContext';
 import {
   addIngredientsToShoppingList,
@@ -44,7 +47,7 @@ import {
 } from '../utils/allergens';
 import { OWNER_ID } from '../utils/storage';
 
-const MEAL_CATS: { key: MealCategory; label: string; icon: any }[] = [
+const MEAL_CATS: { key: MealCategory; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'breakfast', label: 'Petit-déj', icon: 'cafe-outline' },
   { key: 'lunch', label: 'Déjeuner', icon: 'sunny-outline' },
   { key: 'snack', label: 'Collation', icon: 'nutrition-outline' },
@@ -361,54 +364,96 @@ export default function NutritionScreen() {
   };
 
   // ── Render ──────────────────────────────────────────────────────────────
+  const dateLabel = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const over = remaining < 0;
+  const calPct = Math.min(100, Math.round((totals.calories / Math.max(1, profile.targetCalories)) * 100));
+  const closeChef = () => {
+    setChefOpen(false);
+    setChefResults(null);
+  };
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" />
 
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Nutrition</Text>
-          <Text style={styles.subtitle}>
-            {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={styles.cartBtn}
-          onPress={() => navigation.navigate('ShoppingList')}
-          hitSlop={8}
-        >
-          <Ionicons name="cart-outline" size={18} color={COLORS.text} />
-        </TouchableOpacity>
-        <View style={styles.remainingChip}>
-          <Text style={styles.remainingLabel}>RESTANT</Text>
-          <Text style={[styles.remainingValue, remaining < 0 && { color: COLORS.danger }]}>{remaining}</Text>
-          <Text style={styles.remainingUnit}>kcal</Text>
-        </View>
-      </View>
-
       <ScrollView
-        contentContainerStyle={{ padding: SPACING.md, paddingBottom: insets.bottom + 110 }}
+        contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingBottom: insets.bottom + 120 }}
         showsVerticalScrollIndicator={false}
       >
-        <TouchableOpacity style={styles.weekCard} onPress={() => navigation.navigate('MealPlan')} activeOpacity={0.9}>
-          <View style={styles.weekIcon}>
-            <Ionicons name="calendar" size={20} color={COLORS.primary} />
-          </View>
+        <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.weekTitle}>{members.length > 1 ? 'Ta semaine à deux' : 'Ta semaine'}</Text>
-            <Text style={styles.weekSub}>Menus, plats ivoiriens et portions pour chacun</Text>
+            <Text style={styles.subtitle}>{dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1)}</Text>
+            <Text style={styles.title}>Nutrition</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
-        </TouchableOpacity>
+          <PressableScale onPress={() => navigation.navigate('ShoppingList')} hitSlop={8} accessibilityLabel="Liste d'épicerie">
+            <Glass radius={20} style={styles.iconBtn}>
+              <Ionicons name="cart-outline" size={20} color={COLORS.text} />
+            </Glass>
+          </PressableScale>
+        </View>
 
+        {/* ── Le jour en un coup d'œil ── */}
+        <Card style={styles.dayCard}>
+          <Text style={styles.cardCaption}>{over ? 'Au-dessus de l\'objectif' : 'Restant aujourd\'hui'}</Text>
+          <View style={styles.bigNumberRow}>
+            <AnimatedNumber value={Math.abs(remaining)} style={[styles.bigNumber, over && { color: COLORS.warning }]} />
+            <Text style={styles.bigUnit}>kcal</Text>
+          </View>
+          <View style={styles.calTrack}>
+            <View
+              style={[styles.calFill, { width: `${calPct}%`, backgroundColor: over ? COLORS.warning : COLORS.primary }]}
+            />
+          </View>
+          <Text style={styles.calCaption}>
+            {Math.round(totals.calories).toLocaleString('fr-CA')} sur {profile.targetCalories.toLocaleString('fr-CA')} kcal
+          </Text>
+
+          <View style={styles.macroRow}>
+            {[
+              { label: 'Protéines', value: totals.protein, target: profile.targetProtein, color: COLORS.blue },
+              { label: 'Glucides', value: totals.carbs, target: profile.targetCarbs, color: COLORS.accent },
+              { label: 'Lipides', value: totals.fats, target: profile.targetFats, color: COLORS.purple },
+            ].map((m) => {
+              const pct = Math.min(100, Math.round((m.value / Math.max(1, m.target)) * 100));
+              return (
+                <View key={m.label} style={styles.macroItem}>
+                  <Text style={styles.macroLabel}>{m.label}</Text>
+                  <Text style={styles.macroValue}>
+                    {Math.round(m.value)}
+                    <Text style={styles.macroTarget}> / {m.target} g</Text>
+                  </Text>
+                  <View style={styles.macroBarTrack}>
+                    <View style={[styles.macroBarFill, { width: `${pct}%`, backgroundColor: m.color }]} />
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </Card>
+
+        {/* ── Ta semaine ── */}
+        <PressableScale onPress={() => navigation.navigate('MealPlan')} style={{ marginTop: SPACING.md }}>
+          <Glass radius={RADIUS.xl} style={styles.weekCard}>
+            <View style={styles.weekIcon}>
+              <Ionicons name="calendar-outline" size={22} color={COLORS.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.weekTitle}>{members.length > 1 ? 'Ta semaine à deux' : 'Ta semaine'}</Text>
+              <Text style={styles.weekSub}>Menus, plats ivoiriens et portions pour chacun</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+          </Glass>
+        </PressableScale>
+
+        {/* ── Ajouter ── */}
+        <Text style={styles.sectionTitle}>Ajouter un repas</Text>
         <View style={styles.actionGrid}>
-          <ActionTile icon="camera-outline" label="PHOTO" sub="Scan IA" color={COLORS.primary} onPress={pickFromCamera} disabled={scanning} />
-          <ActionTile icon="image-outline" label="GALERIE" sub="Scan IA" color={COLORS.blue} onPress={pickFromGallery} disabled={scanning} />
+          <ActionTile icon="camera-outline" label="Photo" sub="Scan IA" onPress={pickFromCamera} disabled={scanning} />
+          <ActionTile icon="images-outline" label="Galerie" sub="Scan IA" onPress={pickFromGallery} disabled={scanning} />
           <ActionTile
             icon="restaurant-outline"
-            label="CHEF IA"
+            label="Chef IA"
             sub="Swipe"
-            color={COLORS.accent}
             onPress={() => {
               playFx('click');
               setChefResults(null);
@@ -417,9 +462,8 @@ export default function NutritionScreen() {
           />
           <ActionTile
             icon="create-outline"
-            label="MANUEL"
+            label="Manuel"
             sub="Saisie"
-            color={COLORS.purple}
             onPress={() => {
               playFx('click');
               setManualOpen(true);
@@ -428,332 +472,308 @@ export default function NutritionScreen() {
         </View>
 
         {scanning && (
-          <View style={styles.scanningBox}>
-            <ActivityIndicator color={COLORS.primary} />
+          <Glass radius={RADIUS.lg} style={styles.scanningBox}>
+            <ActivityIndicator color={COLORS.textSecondary} />
             <Text style={styles.scanningText}>L'IA analyse ta photo…</Text>
-          </View>
+          </Glass>
         )}
 
-        <View style={styles.macroCard}>
-          {[
-            { label: 'CAL', value: totals.calories, target: profile.targetCalories, color: COLORS.primary, unit: '' },
-            { label: 'PROT', value: totals.protein, target: profile.targetProtein, color: COLORS.blue, unit: 'g' },
-            { label: 'GLUC', value: totals.carbs, target: profile.targetCarbs, color: COLORS.accent, unit: 'g' },
-            { label: 'LIP', value: totals.fats, target: profile.targetFats, color: COLORS.danger, unit: 'g' },
-          ].map((m) => {
-            const pct = Math.min(100, Math.round((m.value / Math.max(1, m.target)) * 100));
-            return (
-              <View key={m.label} style={styles.macroItem}>
-                <Text style={[styles.macroLabel, { color: m.color }]}>{m.label}</Text>
-                <Text style={styles.macroValue}>
-                  {Math.round(m.value)}
-                  {m.unit}
-                </Text>
-                <Text style={styles.macroTarget}>
-                  / {m.target}
-                  {m.unit}
-                </Text>
-                <View style={styles.macroBarTrack}>
-                  <View style={[styles.macroBarFill, { width: `${pct}%`, backgroundColor: m.color }]} />
-                </View>
-              </View>
-            );
-          })}
-        </View>
-
+        {/* ── Journal du jour ── */}
         {MEAL_CATS.map(({ key, label, icon }) => {
           const items = meals.filter((m) => m.category === key);
           if (items.length === 0) return null;
           const calSum = items.reduce((a, m) => a + m.calories, 0);
           return (
-            <View key={key} style={styles.catBlock}>
+            <View key={key}>
               <View style={styles.catHeader}>
                 <View style={styles.catTitle}>
-                  <Ionicons name={icon} size={14} color={COLORS.primary} />
-                  <Text style={styles.catLabel}>{label.toUpperCase()}</Text>
+                  <Ionicons name={icon} size={16} color={COLORS.textSecondary} />
+                  <Text style={styles.catLabel}>{label}</Text>
                 </View>
-                <Text style={styles.catSum}>{calSum} KCAL</Text>
+                <Text style={styles.catSum}>{calSum} kcal</Text>
               </View>
-              {items.map((meal) => (
-                <Pressable
-                  key={meal.id}
-                  style={styles.mealRow}
-                  onLongPress={() =>
-                    Alert.alert(meal.name, 'Supprimer ce repas ?', [
-                      { text: 'Annuler', style: 'cancel' },
-                      { text: 'Supprimer', style: 'destructive', onPress: () => removeMeal(meal.id) },
-                    ])
-                  }
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.mealName} numberOfLines={1}>
-                      {meal.name}
-                    </Text>
-                    <Text style={styles.mealSub}>
-                      P {meal.protein}g · G {meal.carbs}g · L {meal.fats}g
-                    </Text>
+              <Glass radius={RADIUS.xl}>
+                {items.map((meal, idx) => (
+                  <View key={meal.id}>
+                    {idx > 0 && <View style={styles.separator} />}
+                    <Pressable
+                      style={({ pressed }) => [styles.mealRow, pressed && { backgroundColor: COLORS.surface }]}
+                      onLongPress={() =>
+                        Alert.alert(meal.name, 'Supprimer ce repas ?', [
+                          { text: 'Annuler', style: 'cancel' },
+                          { text: 'Supprimer', style: 'destructive', onPress: () => removeMeal(meal.id) },
+                        ])
+                      }
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.mealName} numberOfLines={1}>
+                          {meal.name}
+                        </Text>
+                        <Text style={styles.mealSub}>
+                          P {meal.protein} g · G {meal.carbs} g · L {meal.fats} g
+                        </Text>
+                      </View>
+                      <Text style={styles.mealCal}>
+                        {meal.calories}
+                        <Text style={styles.mealCalUnit}> kcal</Text>
+                      </Text>
+                    </Pressable>
                   </View>
-                  <Text style={styles.mealCal}>{meal.calories}</Text>
-                </Pressable>
-              ))}
+                ))}
+              </Glass>
             </View>
           );
         })}
 
+        {meals.length > 0 && <Text style={styles.footHint}>Appui long sur un repas pour le supprimer.</Text>}
+
         {meals.length === 0 && !scanning && (
           <View style={styles.empty}>
-            <Ionicons name="restaurant-outline" size={48} color={COLORS.border} />
+            <Ionicons name="restaurant-outline" size={40} color={COLORS.textMuted} />
             <Text style={styles.emptyTitle}>Aucun repas aujourd'hui</Text>
             <Text style={styles.emptySub}>Utilise l'IA pour scanner une photo ou ajoute manuellement.</Text>
           </View>
         )}
 
+        {/* ── Favoris ── */}
         {favorites.length > 0 && (
-          <View style={{ marginTop: SPACING.lg }}>
-            <Text style={styles.sectionTitle}>FAVORIS</Text>
-            {favorites.map((r) => (
-              <TouchableOpacity
-                key={r.name}
-                style={styles.favRow}
-                onPress={() => setActiveRecipe(r)}
-              >
-                <Image
-                  source={{ uri: r.image ?? recipeImageUrl(r.imageKeyword, r.name) }}
-                  style={styles.favThumb}
-                  contentFit="cover"
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.favName} numberOfLines={1}>
-                    {r.name}
-                  </Text>
-                  <Text style={styles.favMeta}>
-                    {r.calories} kcal · {r.prepTime}
-                  </Text>
+          <View>
+            <Text style={styles.sectionTitle}>Favoris</Text>
+            <Glass radius={RADIUS.xl}>
+              {favorites.map((r, idx) => (
+                <View key={r.name}>
+                  {idx > 0 && <View style={[styles.separator, { marginLeft: SPACING.md + 56 + 12 }]} />}
+                  <Pressable
+                    style={({ pressed }) => [styles.favRow, pressed && { backgroundColor: COLORS.surface }]}
+                    onPress={() => setActiveRecipe(r)}
+                  >
+                    <Image
+                      source={{ uri: r.image ?? recipeImageUrl(r.imageKeyword, r.name) }}
+                      style={styles.favThumb}
+                      contentFit="cover"
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.favName} numberOfLines={1}>
+                        {r.name}
+                      </Text>
+                      <Text style={styles.favMeta}>
+                        {r.calories} kcal · {r.prepTime}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+                  </Pressable>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-              </TouchableOpacity>
-            ))}
+              ))}
+            </Glass>
           </View>
         )}
       </ScrollView>
 
-      {/* ── Manual modal ────────────────────────────────────────────────── */}
+      {/* ── Saisie manuelle (feuille du bas) ─────────────────────────────── */}
       <Modal visible={manualOpen} animationType="slide" transparent onRequestClose={() => setManualOpen(false)}>
         <View style={styles.overlay}>
-          <View style={[styles.sheet, { paddingBottom: insets.bottom + SPACING.md }]}>
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Ajouter un repas</Text>
-              <TouchableOpacity onPress={() => setManualOpen(false)}>
-                <Ionicons name="close" size={24} color={COLORS.textSecondary} />
-              </TouchableOpacity>
+          <View style={[styles.sheetWrap, { marginBottom: Math.max(insets.bottom, SPACING.sm) }]}>
+            <View style={styles.sheetBacking}>
+              <Glass radius={RADIUS.xl} style={styles.sheet}>
+                <View style={styles.grabber} />
+                <View style={styles.sheetHeader}>
+                  <Text style={styles.sheetTitle}>Ajouter un repas</Text>
+                  <PressableScale onPress={() => setManualOpen(false)} accessibilityLabel="Fermer">
+                    <View style={styles.sheetClose}>
+                      <Ionicons name="close" size={18} color={COLORS.textSecondary} />
+                    </View>
+                  </PressableScale>
+                </View>
+
+                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                  <TextField label="Nom *" value={manualForm.name} onChangeText={(v) => setManualForm({ ...manualForm, name: v })} placeholder="Ex : Poulet riz" />
+                  <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
+                    <TextField label="Calories" value={manualForm.calories} onChangeText={(v) => setManualForm({ ...manualForm, calories: v })} keyboardType="numeric" placeholder="0" style={{ flex: 1 }} />
+                    <TextField label="Protéines (g)" value={manualForm.protein} onChangeText={(v) => setManualForm({ ...manualForm, protein: v })} keyboardType="numeric" placeholder="0" style={{ flex: 1 }} />
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
+                    <TextField label="Glucides (g)" value={manualForm.carbs} onChangeText={(v) => setManualForm({ ...manualForm, carbs: v })} keyboardType="numeric" placeholder="0" style={{ flex: 1 }} />
+                    <TextField label="Lipides (g)" value={manualForm.fats} onChangeText={(v) => setManualForm({ ...manualForm, fats: v })} keyboardType="numeric" placeholder="0" style={{ flex: 1 }} />
+                  </View>
+
+                  <Text style={styles.label}>Catégorie</Text>
+                  <View style={styles.catRow}>
+                    {MEAL_CATS.map((c) => (
+                      <SelectPill
+                        key={c.key}
+                        label={c.label}
+                        active={manualForm.category === c.key}
+                        onPress={() => setManualForm({ ...manualForm, category: c.key })}
+                      />
+                    ))}
+                  </View>
+
+                  <PrimaryButton label="Enregistrer" xp="+25 XP" onPress={submitManual} />
+                </ScrollView>
+              </Glass>
             </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <TextField label="Nom *" value={manualForm.name} onChangeText={(v) => setManualForm({ ...manualForm, name: v })} placeholder="Ex: Poulet riz" />
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TextField label="Calories" value={manualForm.calories} onChangeText={(v) => setManualForm({ ...manualForm, calories: v })} keyboardType="numeric" placeholder="0" style={{ flex: 1 }} />
-                <TextField label="Protéines (g)" value={manualForm.protein} onChangeText={(v) => setManualForm({ ...manualForm, protein: v })} keyboardType="numeric" placeholder="0" style={{ flex: 1 }} />
-              </View>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TextField label="Glucides (g)" value={manualForm.carbs} onChangeText={(v) => setManualForm({ ...manualForm, carbs: v })} keyboardType="numeric" placeholder="0" style={{ flex: 1 }} />
-                <TextField label="Lipides (g)" value={manualForm.fats} onChangeText={(v) => setManualForm({ ...manualForm, fats: v })} keyboardType="numeric" placeholder="0" style={{ flex: 1 }} />
-              </View>
-
-              <Text style={styles.label}>Catégorie</Text>
-              <View style={styles.catRow}>
-                {MEAL_CATS.map((c) => (
-                  <TouchableOpacity key={c.key} style={[styles.catChip, manualForm.category === c.key && styles.catChipActive]} onPress={() => setManualForm({ ...manualForm, category: c.key })}>
-                    <Text style={[styles.catChipText, manualForm.category === c.key && { color: '#08110D' }]}>{c.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <TouchableOpacity style={styles.primaryBtn} onPress={submitManual}>
-                <Ionicons name="checkmark-circle" size={18} color="#08110D" />
-                <Text style={styles.primaryBtnText}>ENREGISTRER (+25 XP)</Text>
-              </TouchableOpacity>
-            </ScrollView>
           </View>
         </View>
       </Modal>
 
-      {/* ── Analyzed modal (full visual with photo) ─────────────────────── */}
+      {/* ── Plat détecté (plein écran, avec la photo) ────────────────────── */}
       <Modal visible={!!analyzed} animationType="slide" onRequestClose={cancelScan}>
-        <View style={[styles.root, { paddingTop: insets.top }]}>
-          <View style={styles.scanHeader}>
-            <TouchableOpacity onPress={cancelScan} hitSlop={10}>
-              <Ionicons name="close" size={26} color={COLORS.text} />
-            </TouchableOpacity>
-            <Text style={styles.scanHeaderTitle}>PLAT DÉTECTÉ</Text>
-            <View style={{ width: 26 }} />
+        <View style={[styles.modalRoot, { paddingTop: insets.top }]}>
+          <AppBackground />
+          <View style={styles.modalHeader}>
+            <IconButton icon="close" label="Fermer" onPress={cancelScan} />
+            <Text style={styles.modalTitle}>Plat détecté</Text>
+            <View style={{ width: 40 }} />
           </View>
 
           <ScrollView
-            contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
+            contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingBottom: insets.bottom + 120 }}
             showsVerticalScrollIndicator={false}
           >
             {scanImageUri && (
-              <Image source={{ uri: scanImageUri }} style={styles.scanHero} contentFit="cover" />
+              <Image source={{ uri: scanImageUri }} style={styles.heroImage} contentFit="cover" />
             )}
 
             {analyzed && (
-              <View style={{ padding: SPACING.lg }}>
+              <View style={{ paddingTop: SPACING.lg }}>
                 <RecipeSafetyBanner conflicts={findFoodConflicts([analyzed.name], members)} />
-                <Text style={styles.scanName}>{analyzed.name}</Text>
-                <View style={styles.scanKcalRow}>
-                  <Text style={styles.scanKcalBig}>{Math.round(analyzed.calories)}</Text>
-                  <Text style={styles.scanKcalUnit}>kcal</Text>
+                <Text style={styles.detailName}>{analyzed.name}</Text>
+                <View style={styles.bigNumberRow}>
+                  <Text style={styles.bigNumber}>{Math.round(analyzed.calories)}</Text>
+                  <Text style={styles.bigUnit}>kcal</Text>
                 </View>
 
-                <View style={styles.scanMacros}>
-                  <MacroBig color={COLORS.blue} value={Math.round(analyzed.protein)} label="PROT" />
-                  <MacroBig color={COLORS.accent} value={Math.round(analyzed.carbs)} label="GLUC" />
-                  <MacroBig color={COLORS.danger} value={Math.round(analyzed.fats)} label="LIP" />
+                <View style={styles.statGrid}>
+                  <MacroBig color={COLORS.blue} value={Math.round(analyzed.protein)} label="Protéines" suffix="g" />
+                  <MacroBig color={COLORS.accent} value={Math.round(analyzed.carbs)} label="Glucides" suffix="g" />
+                  <MacroBig color={COLORS.purple} value={Math.round(analyzed.fats)} label="Lipides" suffix="g" />
                 </View>
 
                 <Text style={styles.label}>Catégorie</Text>
                 <View style={styles.catRow}>
                   {MEAL_CATS.map((c) => (
-                    <TouchableOpacity
+                    <SelectPill
                       key={c.key}
-                      style={[styles.catChip, pendingCategory === c.key && styles.catChipActive]}
+                      icon={c.icon}
+                      label={c.label}
+                      active={pendingCategory === c.key}
                       onPress={() => setPendingCategory(c.key)}
-                    >
-                      <Ionicons name={c.icon} size={14} color={pendingCategory === c.key ? '#08110D' : COLORS.textSecondary} />
-                      <Text style={[styles.catChipText, pendingCategory === c.key && { color: '#08110D' }]}>{c.label}</Text>
-                    </TouchableOpacity>
+                    />
                   ))}
                 </View>
               </View>
             )}
           </ScrollView>
 
-          <View style={[styles.scanFooter, { paddingBottom: insets.bottom + SPACING.md }]}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={cancelScan}>
-              <Text style={styles.cancelText}>REJETER</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.primaryBtn, { flex: 1, marginTop: 0 }]} onPress={confirmAnalyzed}>
-              <Ionicons name="checkmark-circle" size={18} color="#08110D" />
-              <Text style={styles.primaryBtnText}>VALIDER (+25 XP)</Text>
-            </TouchableOpacity>
+          <View style={[styles.floatingFooter, { paddingBottom: insets.bottom + SPACING.md }]}>
+            <PressableScale onPress={cancelScan}>
+              <Glass radius={RADIUS.pill} style={styles.secondaryBtn}>
+                <Text style={styles.secondaryBtnText}>Rejeter</Text>
+              </Glass>
+            </PressableScale>
+            <PrimaryButton label="Valider" xp="+25 XP" onPress={confirmAnalyzed} style={{ flex: 1, marginTop: 0 }} />
           </View>
         </View>
       </Modal>
 
-      {/* ── Chef modal ─────────────────────────────────────────────────── */}
-      <Modal
-        visible={chefOpen}
-        animationType="slide"
-        onRequestClose={() => {
-          setChefOpen(false);
-          setChefResults(null);
-        }}
-      >
-        <View style={[styles.root, { paddingTop: insets.top }]}>
-          <View style={styles.scanHeader}>
-            <TouchableOpacity
-              onPress={() => {
-                setChefOpen(false);
-                setChefResults(null);
-              }}
-              hitSlop={10}
-            >
-              <Ionicons name="close" size={26} color={COLORS.text} />
-            </TouchableOpacity>
-            <Text style={styles.scanHeaderTitle}>CHEF IA</Text>
+      {/* ── Chef IA (plein écran) ────────────────────────────────────────── */}
+      <Modal visible={chefOpen} animationType="slide" onRequestClose={closeChef}>
+        <View style={[styles.modalRoot, { paddingTop: insets.top }]}>
+          <AppBackground />
+          <View style={styles.modalHeader}>
+            <IconButton icon="close" label="Fermer" onPress={closeChef} />
+            <Text style={styles.modalTitle}>Chef IA</Text>
             {chefResults ? (
-              <TouchableOpacity onPress={runChef} disabled={chefLoading} hitSlop={10}>
-                <Ionicons name="refresh" size={22} color={COLORS.primary} />
-              </TouchableOpacity>
+              <IconButton icon="refresh" label="Relancer le chef" onPress={runChef} disabled={chefLoading} />
             ) : (
-              <View style={{ width: 26 }} />
+              <View style={{ width: 40 }} />
             )}
           </View>
 
           {!chefResults && !chefLoading && (
-            <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
-              <Text style={styles.label}>Type de repas</Text>
-              <View style={styles.catRow}>
-                {MEAL_CATS.map((c) => (
-                  <TouchableOpacity key={c.key} style={[styles.catChip, chefParams.category === c.key && styles.catChipActive]} onPress={() => setChefParams({ ...chefParams, category: c.key })}>
-                    <Ionicons name={c.icon} size={14} color={chefParams.category === c.key ? '#08110D' : COLORS.textSecondary} />
-                    <Text style={[styles.catChipText, chefParams.category === c.key && { color: '#08110D' }]}>{c.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+            <ScrollView
+              contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingBottom: insets.bottom + 40 }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Text style={styles.chefLead}>Des recettes calées sur ce qu'il te reste aujourd'hui.</Text>
 
-              {members.length > 1 && (
-                <>
-                  <Text style={styles.label}>Pour qui</Text>
-                  <View style={styles.catRow}>
-                    {members.map((m) => {
-                      const on = activeDinerIds.includes(m.id);
-                      return (
-                        <TouchableOpacity
-                          key={m.id}
-                          style={[styles.catChip, on && styles.catChipActive]}
-                          onPress={() => toggleDiner(m.id)}
-                        >
-                          <Ionicons name={on ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={on ? '#08110D' : COLORS.textSecondary} />
-                          <Text style={[styles.catChipText, on && { color: '#08110D' }]}>
-                            {m.id === OWNER_ID ? 'Moi' : m.name}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </>
-              )}
-              {diners.some((d) => (d.allergens?.length ?? 0) + (d.strictExclusions?.length ?? 0) > 0) && (
-                <View style={styles.safetyNote}>
-                  <Ionicons name="lock-closed" size={13} color={COLORS.danger} />
-                  <Text style={styles.safetyText}>
-                    Exclu d'office : {describeStrictExclusions(diners.map((d) => (d.id === OWNER_ID ? { ...d, name: 'toi' } : d)))}
-                  </Text>
+              <Card style={{ marginTop: SPACING.lg }}>
+                <Text style={[styles.label, { marginTop: 0 }]}>Type de repas</Text>
+                <View style={styles.catRow}>
+                  {MEAL_CATS.map((c) => (
+                    <SelectPill
+                      key={c.key}
+                      icon={c.icon}
+                      label={c.label}
+                      active={chefParams.category === c.key}
+                      onPress={() => setChefParams({ ...chefParams, category: c.key })}
+                    />
+                  ))}
                 </View>
-              )}
 
-              <Text style={styles.label}>Complexité</Text>
-              <View style={styles.catRow}>
-                {DIFFICULTIES.map((d) => (
-                  <TouchableOpacity key={d.id} style={[styles.catChip, chefParams.complexity === d.id && styles.catChipActive]} onPress={() => setChefParams({ ...chefParams, complexity: d.id })}>
-                    <Text style={[styles.catChipText, chefParams.complexity === d.id && { color: '#08110D' }]}>{d.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                {members.length > 1 && (
+                  <>
+                    <Text style={styles.label}>Pour qui</Text>
+                    <View style={styles.catRow}>
+                      {members.map((m) => {
+                        const on = activeDinerIds.includes(m.id);
+                        return (
+                          <SelectPill
+                            key={m.id}
+                            icon={on ? 'checkmark-circle' : 'ellipse-outline'}
+                            label={m.id === OWNER_ID ? 'Moi' : m.name}
+                            active={on}
+                            onPress={() => toggleDiner(m.id)}
+                          />
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+                {diners.some((d) => (d.allergens?.length ?? 0) + (d.strictExclusions?.length ?? 0) > 0) && (
+                  <SafetyNote
+                    icon="lock-closed"
+                    text={`Exclu d'office : ${describeStrictExclusions(diners.map((d) => (d.id === OWNER_ID ? { ...d, name: 'toi' } : d)))}`}
+                  />
+                )}
 
-              <Text style={styles.label}>Ingrédients dispo (optionnel)</Text>
-              <TextInput
-                multiline
-                numberOfLines={3}
-                value={chefParams.fridge}
-                onChangeText={(v) => setChefParams({ ...chefParams, fridge: v })}
-                placeholder="Poulet, riz, brocoli…"
-                placeholderTextColor={COLORS.textMuted}
-                style={[styles.input, { minHeight: 80, textAlignVertical: 'top' }]}
-              />
+                <Text style={styles.label}>Complexité</Text>
+                <Segmented
+                  options={DIFFICULTIES.map((d) => ({ value: d.id, label: d.label }))}
+                  value={chefParams.complexity}
+                  onChange={(v) => setChefParams({ ...chefParams, complexity: v })}
+                />
 
-              <TouchableOpacity style={styles.primaryBtn} onPress={runChef}>
-                <Ionicons name="sparkles" size={18} color="#08110D" />
-                <Text style={styles.primaryBtnText}>GÉNÉRER 5 RECETTES</Text>
-              </TouchableOpacity>
+                <Text style={styles.label}>Ingrédients dispo (optionnel)</Text>
+                <TextInput
+                  multiline
+                  numberOfLines={3}
+                  value={chefParams.fridge}
+                  onChangeText={(v) => setChefParams({ ...chefParams, fridge: v })}
+                  placeholder="Poulet, riz, brocoli…"
+                  placeholderTextColor={COLORS.textMuted}
+                  style={[styles.input, { minHeight: 88, textAlignVertical: 'top' }]}
+                />
+              </Card>
+
+              <PrimaryButton icon="sparkles" label="Générer 5 recettes" onPress={runChef} style={{ marginTop: SPACING.lg }} />
             </ScrollView>
           )}
 
           {chefLoading && (
             <View style={styles.chefLoading}>
-              <ActivityIndicator color={COLORS.primary} size="large" />
+              <ActivityIndicator color={COLORS.textSecondary} size="large" />
               <Text style={styles.chefLoadingText}>Le chef prépare le menu…</Text>
             </View>
           )}
 
           {chefResults && !chefLoading && chefBlocked.length > 0 && (
-            <View style={[styles.safetyNote, { marginHorizontal: SPACING.lg }]}>
-              <Ionicons name="shield-checkmark" size={14} color={COLORS.danger} />
-              <Text style={styles.safetyText}>
-                {chefBlocked.length} recette{chefBlocked.length > 1 ? 's écartées' : ' écartée'} :{' '}
-                {summarizeConflicts(chefBlocked.flatMap((b) => b.conflicts))}
-              </Text>
+            <View style={{ marginHorizontal: SPACING.md }}>
+              <SafetyNote
+                icon="shield-checkmark"
+                text={`${chefBlocked.length} recette${chefBlocked.length > 1 ? 's écartées' : ' écartée'} : ${summarizeConflicts(chefBlocked.flatMap((b) => b.conflicts))}`}
+              />
             </View>
           )}
 
@@ -778,83 +798,94 @@ export default function NutritionScreen() {
         </View>
       </Modal>
 
-      {/* ── Recipe details ──────────────────────────────────────────────── */}
+      {/* ── Détail d'une recette (plein écran) ───────────────────────────── */}
       <Modal visible={!!activeRecipe} animationType="slide" onRequestClose={() => setActiveRecipe(null)}>
-        <View style={[styles.root, { paddingTop: insets.top }]}>
-          <View style={styles.scanHeader}>
-            <TouchableOpacity onPress={() => setActiveRecipe(null)} hitSlop={10}>
-              <Ionicons name="chevron-back" size={24} color={COLORS.text} />
-            </TouchableOpacity>
+        <View style={[styles.modalRoot, { paddingTop: insets.top }]}>
+          <AppBackground />
+          <View style={styles.modalHeader}>
+            <IconButton icon="chevron-back" label="Retour" onPress={() => setActiveRecipe(null)} />
             {activeRecipe && (
-              <TouchableOpacity onPress={() => toggleFavorite(activeRecipe)} hitSlop={10}>
-                <Ionicons
-                  name={favorites.some((f) => f.name === activeRecipe.name) ? 'star' : 'star-outline'}
-                  size={24}
-                  color={COLORS.accent}
-                />
-              </TouchableOpacity>
+              <IconButton
+                icon={favorites.some((f) => f.name === activeRecipe.name) ? 'star' : 'star-outline'}
+                label={favorites.some((f) => f.name === activeRecipe.name) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                onPress={() => toggleFavorite(activeRecipe)}
+              />
             )}
           </View>
           {activeRecipe && (
-            <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 110 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingBottom: insets.bottom + 120 }}
+              showsVerticalScrollIndicator={false}
+            >
               <Image
                 source={{ uri: activeRecipe.image ?? recipeImageUrl(activeRecipe.imageKeyword, activeRecipe.name) }}
-                style={styles.detailHero}
+                style={styles.heroImage}
                 contentFit="cover"
               />
-              <View style={{ padding: SPACING.lg }}>
+              <View style={{ paddingTop: SPACING.lg }}>
                 <RecipeSafetyBanner conflicts={findRecipeConflicts(activeRecipe, members)} />
-                <Text style={styles.recipeFullName}>{activeRecipe.name}</Text>
-                <Text style={styles.recipeFullDesc}>{activeRecipe.desc}</Text>
-                <View style={styles.recipeStatRow}>
-                  <MacroBig color={COLORS.primary} value={activeRecipe.calories} label="KCAL" />
-                  <MacroBig color={COLORS.blue} value={activeRecipe.protein} label="PROT" suffix="g" />
-                  <MacroBig color={COLORS.accent} value={activeRecipe.carbs} label="GLUC" suffix="g" />
-                  <MacroBig color={COLORS.danger} value={activeRecipe.fats} label="LIP" suffix="g" />
-                </View>
+                <Text style={styles.detailName}>{activeRecipe.name}</Text>
+                <Text style={styles.detailDesc}>{activeRecipe.desc}</Text>
                 <View style={styles.detailMetaRow}>
                   <View style={styles.metaPill}>
                     <Ionicons name="time-outline" size={14} color={COLORS.textSecondary} />
                     <Text style={styles.metaText}>{activeRecipe.prepTime}</Text>
                   </View>
                   <View style={styles.metaPill}>
-                    <Ionicons name="flame-outline" size={14} color={COLORS.textSecondary} />
+                    <Ionicons name="speedometer-outline" size={14} color={COLORS.textSecondary} />
                     <Text style={styles.metaText}>{activeRecipe.difficulty}</Text>
                   </View>
                 </View>
-                <View style={styles.ingHeader}>
-                  <Text style={styles.sectionTitle}>INGRÉDIENTS</Text>
-                  <TouchableOpacity
-                    style={styles.addToCartBtn}
-                    onPress={() => activeRecipe && addRecipeToShoppingList(activeRecipe)}
-                  >
-                    <Ionicons name="cart-outline" size={13} color={COLORS.primary} />
-                    <Text style={styles.addToCartText}>AU PANIER</Text>
-                  </TouchableOpacity>
+                <View style={styles.statGrid}>
+                  <MacroBig value={activeRecipe.calories} label="Énergie" suffix="kcal" />
+                  <MacroBig color={COLORS.blue} value={activeRecipe.protein} label="Protéines" suffix="g" />
+                  <MacroBig color={COLORS.accent} value={activeRecipe.carbs} label="Glucides" suffix="g" />
+                  <MacroBig color={COLORS.purple} value={activeRecipe.fats} label="Lipides" suffix="g" />
                 </View>
-                {activeRecipe.ingredients.map((ing, i) => (
-                  <View key={i} style={styles.ingRow}>
-                    <View style={styles.ingDot} />
-                    <Text style={styles.ingText}>{ing}</Text>
-                  </View>
-                ))}
-                <Text style={styles.sectionTitle}>PRÉPARATION</Text>
-                {activeRecipe.instructions.map((step, i) => (
-                  <View key={i} style={styles.stepRow}>
-                    <View style={styles.stepNum}>
-                      <Text style={styles.stepNumText}>{i + 1}</Text>
+
+                <View style={styles.ingHeader}>
+                  <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Ingrédients</Text>
+                  <PressableScale onPress={() => activeRecipe && addRecipeToShoppingList(activeRecipe)} style={{ marginTop: SPACING.xl }}>
+                    <Glass radius={RADIUS.pill} style={styles.addToCartBtn}>
+                      <Ionicons name="cart-outline" size={16} color={COLORS.text} />
+                      <Text style={styles.addToCartText}>Au panier</Text>
+                    </Glass>
+                  </PressableScale>
+                </View>
+                <Glass radius={RADIUS.xl} style={{ marginTop: SPACING.sm }}>
+                  {activeRecipe.ingredients.map((ing, i) => (
+                    <View key={i}>
+                      {i > 0 && <View style={styles.separator} />}
+                      <View style={styles.ingRow}>
+                        <View style={styles.ingDot} />
+                        <Text style={styles.ingText}>{ing}</Text>
+                      </View>
                     </View>
-                    <Text style={styles.stepText}>{step}</Text>
-                  </View>
-                ))}
+                  ))}
+                </Glass>
+
+                <Text style={styles.sectionTitle}>Préparation</Text>
+                <Glass radius={RADIUS.xl} style={styles.stepsCard}>
+                  {activeRecipe.instructions.map((step, i) => (
+                    <View key={i} style={styles.stepRow}>
+                      <View style={styles.stepNum}>
+                        <Text style={styles.stepNumText}>{i + 1}</Text>
+                      </View>
+                      <Text style={styles.stepText}>{step}</Text>
+                    </View>
+                  ))}
+                </Glass>
               </View>
             </ScrollView>
           )}
-          <View style={[styles.recipeFooter, { paddingBottom: insets.bottom + SPACING.md }]}>
-            <TouchableOpacity style={[styles.primaryBtn, { marginTop: 0 }]} onPress={() => activeRecipe && logRecipe(activeRecipe)}>
-              <Ionicons name="restaurant" size={18} color="#08110D" />
-              <Text style={styles.primaryBtnText}>LOG REPAS (+25 XP)</Text>
-            </TouchableOpacity>
+          <View style={[styles.floatingFooter, { paddingBottom: insets.bottom + SPACING.md }]}>
+            <PrimaryButton
+              icon="add-circle-outline"
+              label="Ajouter à mon journal"
+              xp="+25 XP"
+              onPress={() => activeRecipe && logRecipe(activeRecipe)}
+              style={{ flex: 1, marginTop: 0 }}
+            />
           </View>
         </View>
       </Modal>
@@ -862,40 +893,106 @@ export default function NutritionScreen() {
   );
 }
 
-// ── small helpers ──────────────────────────────────────────────────────────
-const ActionTile: React.FC<{
-  icon: any;
+// ── Petites briques locales ────────────────────────────────────────────────
+const IconButton: React.FC<{
+  icon: keyof typeof Ionicons.glyphMap;
   label: string;
-  sub: string;
-  color: string;
   onPress: () => void;
   disabled?: boolean;
-}> = ({ icon, label, sub, color, onPress, disabled }) => (
-  <TouchableOpacity style={[styles.actionTile, disabled && { opacity: 0.5 }]} onPress={onPress} disabled={disabled} activeOpacity={0.85}>
-    <Ionicons name={icon} size={22} color={color} />
-    <Text style={[styles.actionLabel, { color }]}>{label}</Text>
-    <Text style={styles.actionSub}>{sub}</Text>
-  </TouchableOpacity>
+}> = ({ icon, label, onPress, disabled }) => (
+  <PressableScale onPress={onPress} disabled={disabled} hitSlop={8} accessibilityLabel={label}>
+    <Glass radius={20} style={[styles.iconBtn, disabled && { opacity: 0.5 }]}>
+      <Ionicons name={icon} size={20} color={COLORS.text} />
+    </Glass>
+  </PressableScale>
+);
+
+const PrimaryButton: React.FC<{
+  label: string;
+  onPress: () => void;
+  icon?: keyof typeof Ionicons.glyphMap;
+  xp?: string;
+  style?: StyleProp<ViewStyle>;
+}> = ({ label, onPress, icon, xp, style }) => (
+  <View style={[{ marginTop: SPACING.lg }, style]}>
+    <PressableScale onPress={onPress} style={styles.primaryBtn}>
+      {icon ? <Ionicons name={icon} size={19} color={COLORS.onPrimary} /> : null}
+      <Text style={styles.primaryBtnText}>{label}</Text>
+      {xp ? <Text style={styles.primaryBtnXp}>{xp}</Text> : null}
+    </PressableScale>
+  </View>
+);
+
+const SelectPill: React.FC<{
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  icon?: keyof typeof Ionicons.glyphMap;
+}> = ({ label, active, onPress, icon }) => (
+  <PressableScale
+    onPress={onPress}
+    style={[styles.catChip, active && styles.catChipActive]}
+    accessibilityRole="button"
+    accessibilityState={{ selected: active }}
+  >
+    {icon ? <Ionicons name={icon} size={15} color={active ? COLORS.onPrimary : COLORS.textSecondary} /> : null}
+    <Text style={[styles.catChipText, active && { color: COLORS.onPrimary }]}>{label}</Text>
+  </PressableScale>
+);
+
+const ActionTile: React.FC<{
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  sub: string;
+  onPress: () => void;
+  disabled?: boolean;
+}> = ({ icon, label, sub, onPress, disabled }) => (
+  <View style={[styles.actionTileWrap, disabled && { opacity: 0.5 }]}>
+    <PressableScale onPress={onPress} disabled={disabled}>
+      <Glass radius={RADIUS.lg + 4} style={styles.actionTile}>
+        <View style={styles.actionIcon}>
+          <Ionicons name={icon} size={21} color={COLORS.text} />
+        </View>
+        <Text style={styles.actionLabel}>{label}</Text>
+        <Text style={styles.actionSub}>{sub}</Text>
+      </Glass>
+    </PressableScale>
+  </View>
+);
+
+// Bandeau rouge des exclusions strictes et des recettes écartées.
+const SafetyNote: React.FC<{ icon: keyof typeof Ionicons.glyphMap; text: string }> = ({ icon, text }) => (
+  <View style={styles.safetyNote} accessibilityRole="alert">
+    <View style={styles.safetyIcon}>
+      <Ionicons name={icon} size={15} color={COLORS.danger} />
+    </View>
+    <Text style={styles.safetyText}>{text}</Text>
+  </View>
 );
 
 // Alerte rouge quand une recette (favori ancien, scan photo) touche une
 // exclusion stricte d'une personne du foyer.
 const RecipeSafetyBanner: React.FC<{ conflicts: FoodConflict[] }> = ({ conflicts }) =>
   conflicts.length ? (
-    <View style={styles.dangerBanner}>
-      <Ionicons name="warning" size={16} color={COLORS.danger} />
+    <View style={styles.dangerBanner} accessibilityRole="alert">
+      <View style={styles.safetyIcon}>
+        <Ionicons name="warning" size={16} color={COLORS.danger} />
+      </View>
       <Text style={styles.dangerText}>Contient : {summarizeConflicts(conflicts)}</Text>
     </View>
   ) : null;
 
-const MacroBig: React.FC<{ color: string; value: number; label: string; suffix?: string }> = ({ color, value, label, suffix }) => (
-  <View style={styles.macroBig}>
-    <Text style={[styles.macroBigValue, { color }]}>
+const MacroBig: React.FC<{ color?: string; value: number; label: string; suffix?: string }> = ({ color, value, label, suffix }) => (
+  <Glass radius={RADIUS.lg} style={styles.macroBig}>
+    <Text style={styles.macroBigValue}>
       {value}
-      {suffix ?? ''}
+      {suffix ? <Text style={styles.macroBigUnit}> {suffix}</Text> : null}
     </Text>
-    <Text style={styles.macroBigLabel}>{label}</Text>
-  </View>
+    <View style={styles.macroBigLabelRow}>
+      {color ? <View style={[styles.macroDot, { backgroundColor: color }]} /> : null}
+      <Text style={styles.macroBigLabel}>{label}</Text>
+    </View>
+  </Glass>
 );
 
 const TextField: React.FC<{
@@ -906,7 +1003,7 @@ const TextField: React.FC<{
   keyboardType?: any;
   style?: any;
 }> = ({ label, value, onChangeText, placeholder, keyboardType, style }) => (
-  <View style={[{ marginBottom: SPACING.sm }, style]}>
+  <View style={[{ marginBottom: SPACING.xs }, style]}>
     <Text style={styles.label}>{label}</Text>
     <TextInput
       value={value}
@@ -921,328 +1018,261 @@ const TextField: React.FC<{
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
-  weekCard: {
+  modalRoot: { flex: 1, backgroundColor: COLORS.background },
+
+  // en-tête
+  header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     gap: SPACING.md,
-    padding: SPACING.md,
-    borderRadius: RADIUS.xl,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.primarySoft,
-    marginBottom: SPACING.md,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.lg,
   },
+  subtitle: { ...TYPE.caption, color: COLORS.textSecondary },
+  title: { ...TYPE.largeTitle, color: COLORS.text, marginTop: 2 },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+
+  // carte du jour
+  dayCard: { paddingVertical: SPACING.lg },
+  cardCaption: { ...TYPE.caption, color: COLORS.textSecondary },
+  bigNumberRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 2 },
+  bigNumber: { ...TYPE.number, fontSize: 52, color: COLORS.text },
+  bigUnit: { ...TYPE.headline, color: COLORS.textSecondary },
+  calTrack: { height: 8, borderRadius: 4, backgroundColor: COLORS.surface, marginTop: SPACING.md, overflow: 'hidden' },
+  calFill: { height: '100%', borderRadius: 4 },
+  calCaption: { ...TYPE.footnote, color: COLORS.textMuted, marginTop: SPACING.sm, fontVariant: ['tabular-nums'] },
+  macroRow: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginTop: SPACING.lg,
+    paddingTop: SPACING.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+  },
+  macroItem: { flex: 1 },
+  macroLabel: { ...TYPE.footnote, color: COLORS.textSecondary },
+  macroValue: { ...TYPE.number, fontSize: 20, color: COLORS.text, marginTop: 2 },
+  macroTarget: { fontSize: 12, fontWeight: '500', letterSpacing: 0, color: COLORS.textMuted },
+  macroBarTrack: { height: 4, backgroundColor: COLORS.surface, borderRadius: 2, marginTop: 8, overflow: 'hidden' },
+  macroBarFill: { height: '100%', borderRadius: 2 },
+
+  // ta semaine
+  weekCard: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: SPACING.md },
   weekIcon: {
     width: 44,
     height: 44,
-    borderRadius: RADIUS.lg,
+    borderRadius: 22,
     backgroundColor: COLORS.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  weekTitle: { color: COLORS.text, fontSize: 16, fontWeight: '800' },
-  weekSub: { color: COLORS.textMuted, fontSize: 12, marginTop: 2 },
+  weekTitle: { ...TYPE.headline, color: COLORS.text },
+  weekSub: { ...TYPE.footnote, fontWeight: '400', color: COLORS.textSecondary, marginTop: 2 },
+
+  // actions
+  sectionTitle: { ...TYPE.title, color: COLORS.text, marginTop: SPACING.xl, marginBottom: SPACING.md },
+  actionGrid: { flexDirection: 'row', gap: SPACING.sm },
+  actionTileWrap: { flex: 1 },
+  actionTile: { alignItems: 'center', paddingVertical: SPACING.md, paddingHorizontal: 4 },
+  actionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.cardElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionLabel: { ...TYPE.caption, fontWeight: '600', color: COLORS.text, marginTop: 8 },
+  actionSub: { fontSize: 11, fontWeight: '400', color: COLORS.textMuted, marginTop: 1 },
+
+  scanningBox: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: SPACING.md, marginTop: SPACING.md },
+  scanningText: { ...TYPE.callout, color: COLORS.text },
+
+  // journal
+  catHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: SPACING.xl,
+    marginBottom: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+  },
+  catTitle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  catLabel: { ...TYPE.overline, color: COLORS.textSecondary },
+  catSum: { ...TYPE.caption, color: COLORS.textMuted, fontVariant: ['tabular-nums'] },
+  separator: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border, marginLeft: SPACING.md },
+  mealRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: SPACING.md, paddingVertical: 14 },
+  mealName: { ...TYPE.body, fontWeight: '500', color: COLORS.text },
+  mealSub: { ...TYPE.footnote, fontWeight: '400', color: COLORS.textMuted, marginTop: 2 },
+  mealCal: { ...TYPE.number, fontSize: 17, color: COLORS.text },
+  mealCalUnit: { fontSize: 12, fontWeight: '500', letterSpacing: 0, color: COLORS.textSecondary },
+  footHint: { ...TYPE.footnote, fontWeight: '400', color: COLORS.textMuted, marginTop: SPACING.sm, paddingHorizontal: SPACING.md },
+
+  empty: { alignItems: 'center', paddingVertical: SPACING.xl, paddingHorizontal: SPACING.lg, marginTop: SPACING.md },
+  emptyTitle: { ...TYPE.headline, color: COLORS.text, marginTop: SPACING.sm },
+  emptySub: { ...TYPE.caption, fontWeight: '400', color: COLORS.textSecondary, marginTop: 4, textAlign: 'center', lineHeight: 18 },
+
+  // favoris
+  favRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: SPACING.md, paddingVertical: 10 },
+  favThumb: { width: 56, height: 56, borderRadius: 14, backgroundColor: COLORS.surface },
+  favName: { ...TYPE.body, fontWeight: '500', color: COLORS.text },
+  favMeta: { ...TYPE.footnote, fontWeight: '400', color: COLORS.textMuted, marginTop: 2 },
+
+  // feuille du bas
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  sheetWrap: { marginHorizontal: SPACING.sm, maxHeight: '90%' },
+  sheetBacking: { borderRadius: RADIUS.xl, backgroundColor: 'rgba(18,20,28,0.85)', overflow: 'hidden' },
+  sheet: { padding: SPACING.lg, paddingTop: SPACING.sm },
+  grabber: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3, backgroundColor: COLORS.borderStrong, marginBottom: SPACING.md },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.xs },
+  sheetTitle: { ...TYPE.title, color: COLORS.text },
+  sheetClose: { width: 30, height: 30, borderRadius: 15, backgroundColor: COLORS.cardElevated, alignItems: 'center', justifyContent: 'center' },
+
+  // formulaires
+  label: { ...TYPE.overline, color: COLORS.textSecondary, marginBottom: SPACING.sm, marginTop: SPACING.md },
+  input: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    color: COLORS.text,
+    ...TYPE.body,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+  },
+  catRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  catChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+  },
+  catChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  catChipText: { ...TYPE.caption, fontWeight: '600', color: COLORS.textSecondary },
+
+  // boutons
+  primaryBtn: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: RADIUS.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryBtnText: { color: COLORS.onPrimary, fontSize: 17, fontWeight: '600' },
+  primaryBtnXp: { color: COLORS.onPrimary, fontSize: 13, fontWeight: '500', opacity: 0.55 },
+  secondaryBtn: { paddingVertical: 16, paddingHorizontal: SPACING.lg, alignItems: 'center', justifyContent: 'center' },
+  secondaryBtnText: { color: COLORS.text, fontSize: 17, fontWeight: '600' },
+
+  // sécurité (allergies) : rouge, toujours très visible
   safetyNote: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    padding: SPACING.sm + 2,
-    borderRadius: RADIUS.md,
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: RADIUS.lg,
     backgroundColor: COLORS.dangerSoft,
-    marginBottom: SPACING.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: `${COLORS.danger}66`,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.xs,
   },
-  safetyText: { color: COLORS.text, fontSize: 12, fontWeight: '600', flex: 1 },
+  safetyIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: `${COLORS.danger}26`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  safetyText: { ...TYPE.caption, color: COLORS.text, flex: 1, lineHeight: 18 },
   dangerBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    padding: SPACING.md,
-    borderRadius: RADIUS.md,
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
     borderColor: COLORS.danger,
     backgroundColor: COLORS.dangerSoft,
     marginBottom: SPACING.md,
   },
-  dangerText: { color: COLORS.danger, fontSize: 13, fontWeight: '700', flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-  },
-  title: { color: COLORS.text, fontSize: 24, fontWeight: '800' },
-  subtitle: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2, textTransform: 'capitalize' },
-  remainingChip: {
-    alignItems: 'flex-end',
-    backgroundColor: COLORS.card,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  remainingLabel: { color: COLORS.primary, fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
-  remainingValue: { color: COLORS.text, fontSize: 22, fontWeight: '900', lineHeight: 24 },
-  remainingUnit: { color: COLORS.textSecondary, fontSize: 10, fontWeight: '700' },
+  dangerText: { ...TYPE.callout, fontWeight: '600', color: COLORS.danger, flex: 1, lineHeight: 20 },
 
-  cartBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: SPACING.sm,
-  },
-  ingHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  addToCartBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: RADIUS.pill,
-    backgroundColor: `${COLORS.primary}15`,
-    borderWidth: 1,
-    borderColor: `${COLORS.primary}55`,
-  },
-  addToCartText: { color: COLORS.primary, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
-
-  actionGrid: { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap', marginBottom: SPACING.md },
-  actionTile: {
-    flex: 1,
-    minWidth: '22%',
-    backgroundColor: COLORS.card,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.lg,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 4,
-  },
-  actionLabel: { fontSize: 11, fontWeight: '900', letterSpacing: 0.8, marginTop: 4 },
-  actionSub: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700' },
-
-  scanningBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: `${COLORS.primary}11`,
-    borderColor: `${COLORS.primary}33`,
-    borderWidth: 1,
-    padding: SPACING.md,
-    borderRadius: RADIUS.md,
-    marginBottom: SPACING.md,
-  },
-  scanningText: { color: COLORS.primary, fontWeight: '700', fontSize: 13 },
-
-  macroCard: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: SPACING.md,
-  },
-  macroItem: { flex: 1, alignItems: 'center' },
-  macroLabel: { fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
-  macroValue: { color: COLORS.text, fontSize: 18, fontWeight: '900', marginTop: 4 },
-  macroTarget: { color: COLORS.textMuted, fontSize: 10, fontWeight: '600' },
-  macroBarTrack: {
-    height: 4,
-    width: '80%',
-    backgroundColor: COLORS.surface,
-    borderRadius: 2,
-    marginTop: 6,
-    overflow: 'hidden',
-  },
-  macroBarFill: { height: '100%', borderRadius: 2 },
-
-  catBlock: { marginBottom: SPACING.md },
-  catHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingHorizontal: 4 },
-  catTitle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  catLabel: { color: COLORS.textSecondary, fontWeight: '800', fontSize: 11, letterSpacing: 1 },
-  catSum: { color: COLORS.textMuted, fontSize: 10, fontWeight: '800' },
-
-  mealRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.card,
-    padding: SPACING.md,
-    borderRadius: RADIUS.md,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  mealName: { color: COLORS.text, fontWeight: '700' },
-  mealSub: { color: COLORS.textMuted, fontSize: 11, marginTop: 2 },
-  mealCal: { color: COLORS.primary, fontWeight: '900', fontSize: 16 },
-
-  empty: { alignItems: 'center', padding: SPACING.xl },
-  emptyTitle: { color: COLORS.textSecondary, fontSize: 16, fontWeight: '700', marginTop: 8 },
-  emptySub: { color: COLORS.textMuted, fontSize: 12, marginTop: 4, textAlign: 'center' },
-
-  sectionTitle: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.sm,
-  },
-  favRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: COLORS.card,
-    padding: SPACING.sm,
-    borderRadius: RADIUS.md,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  favThumb: { width: 48, height: 48, borderRadius: 8, backgroundColor: COLORS.surface },
-  favName: { color: COLORS.text, fontWeight: '700', fontSize: 13 },
-  favMeta: { color: COLORS.textMuted, fontSize: 11, marginTop: 2 },
-
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: COLORS.background,
-    borderTopLeftRadius: RADIUS.xl,
-    borderTopRightRadius: RADIUS.xl,
-    padding: SPACING.lg,
-    maxHeight: '90%',
-  },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
-  sheetTitle: { color: COLORS.text, fontSize: 18, fontWeight: '900' },
-
-  label: { color: COLORS.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1.2, marginBottom: 6, marginTop: SPACING.sm },
-  input: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    color: COLORS.text,
-    fontSize: 14,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  catRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: SPACING.sm },
-  catChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: RADIUS.pill,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  catChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  catChipText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 12 },
-
-  primaryBtn: {
-    flexDirection: 'row',
-    gap: 8,
-    backgroundColor: COLORS.primary,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: SPACING.md,
-  },
-  primaryBtnText: { color: '#08110D', fontWeight: '900', fontSize: 13, letterSpacing: 1 },
-  cancelBtn: {
-    backgroundColor: COLORS.surface,
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.lg,
-    borderRadius: RADIUS.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelText: { color: COLORS.textSecondary, fontWeight: '800', fontSize: 12, letterSpacing: 1 },
-
-  // scan
-  scanHeader: {
+  // modales plein écran
+  modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.md,
   },
-  scanHeaderTitle: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '900', letterSpacing: 2 },
-  scanHero: { width: '100%', height: 260, backgroundColor: COLORS.surface },
-  scanName: { color: COLORS.text, fontSize: 24, fontWeight: '900' },
-  scanKcalRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 6, gap: 6 },
-  scanKcalBig: { color: COLORS.primary, fontSize: 44, fontWeight: '900' },
-  scanKcalUnit: { color: COLORS.textSecondary, fontSize: 16, fontWeight: '700' },
-  scanMacros: { flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACING.md, gap: 8 },
-  scanFooter: {
+  modalTitle: { ...TYPE.headline, color: COLORS.text },
+  heroImage: { width: '100%', aspectRatio: 4 / 3, borderRadius: RADIUS.xl, backgroundColor: COLORS.surface },
+  detailName: { ...TYPE.largeTitle, fontSize: 30, color: COLORS.text },
+  detailDesc: { ...TYPE.body, color: COLORS.textSecondary, marginTop: SPACING.sm, lineHeight: 22 },
+  statGrid: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.lg },
+  macroBig: { flex: 1, paddingVertical: 12, paddingHorizontal: 12 },
+  macroBigValue: { ...TYPE.number, fontSize: 20, color: COLORS.text },
+  macroBigUnit: { fontSize: 12, fontWeight: '500', letterSpacing: 0, color: COLORS.textSecondary },
+  macroBigLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
+  macroDot: { width: 6, height: 6, borderRadius: 3 },
+  macroBigLabel: { ...TYPE.footnote, color: COLORS.textSecondary },
+  floatingFooter: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
     flexDirection: 'row',
-    gap: 8,
-    padding: SPACING.md,
-    backgroundColor: COLORS.background,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.md,
   },
-  macroBig: {
-    flex: 1,
-    backgroundColor: COLORS.card,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  macroBigValue: { fontSize: 20, fontWeight: '900' },
-  macroBigLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '800', letterSpacing: 1, marginTop: 2 },
 
   // chef
-  chefLoading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 },
-  chefLoadingText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 14 },
+  chefLead: { ...TYPE.body, color: COLORS.textSecondary, textAlign: 'center', paddingHorizontal: SPACING.lg },
+  chefLoading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, paddingHorizontal: SPACING.xl },
+  chefLoadingText: { ...TYPE.callout, color: COLORS.textSecondary, textAlign: 'center' },
 
-  // recipe detail
-  detailHero: { width: '100%', height: 240, backgroundColor: COLORS.surface },
-  recipeFullName: { color: COLORS.text, fontSize: 26, fontWeight: '900' },
-  recipeFullDesc: { color: COLORS.textSecondary, fontSize: 13, marginTop: 6, lineHeight: 18 },
-  recipeStatRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACING.lg, gap: 6 },
-  detailMetaRow: { flexDirection: 'row', gap: 8, marginTop: SPACING.md },
+  // détail recette
+  detailMetaRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md },
   metaPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     backgroundColor: COLORS.surface,
-    paddingHorizontal: SPACING.sm,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: RADIUS.pill,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
-  metaText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
-  ingRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
-  ingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.primary },
-  ingText: { color: COLORS.text, fontSize: 14, flex: 1 },
-  stepRow: { flexDirection: 'row', gap: 12, paddingVertical: 8 },
-  stepNum: { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
-  stepNumText: { color: '#08110D', fontWeight: '900' },
-  stepText: { flex: 1, color: COLORS.text, fontSize: 14, lineHeight: 20 },
-  recipeFooter: {
-    padding: SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    backgroundColor: COLORS.background,
+  metaText: { ...TYPE.footnote, color: COLORS.textSecondary },
+  ingHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  addToCartBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8 },
+  addToCartText: { ...TYPE.caption, fontWeight: '600', color: COLORS.text },
+  ingRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: SPACING.md, paddingVertical: 13 },
+  ingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.textMuted },
+  ingText: { ...TYPE.body, color: COLORS.text, flex: 1 },
+  stepsCard: { padding: SPACING.md, gap: SPACING.md },
+  stepRow: { flexDirection: 'row', gap: 12 },
+  stepNum: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: COLORS.cardElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
   },
+  stepNumText: { ...TYPE.footnote, fontWeight: '600', color: COLORS.text },
+  stepText: { ...TYPE.body, flex: 1, color: COLORS.text, lineHeight: 22 },
 });
