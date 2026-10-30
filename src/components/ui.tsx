@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, RADIUS, SPACING, TYPE } from '../theme';
+import { GlassCard } from './glass';
 
 // ── PressableScale : ressort léger à l'appui ───────────────────────────────
 interface PressableScaleProps extends Omit<PressableProps, 'style'> {
@@ -87,7 +88,7 @@ export const AnimatedNumber: React.FC<{
 export const Card: React.FC<{ style?: StyleProp<ViewStyle>; children: React.ReactNode }> = ({
   style,
   children,
-}) => <View style={[ui.card, style]}>{children}</View>;
+}) => <GlassCard style={style}>{children}</GlassCard>;
 
 // ── SectionLabel ───────────────────────────────────────────────────────────
 export const SectionLabel: React.FC<{ children: React.ReactNode; hint?: string }> = ({

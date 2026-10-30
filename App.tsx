@@ -3,12 +3,14 @@ import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
 import { AppProvider, useApp } from './src/contexts/AppContext';
 import LevelUpOverlay from './src/components/LevelUpOverlay';
 import { COLORS } from './src/theme';
+import { AppBackground, Glass } from './src/components/glass';
 
 import DashboardScreen from './src/screens/DashboardScreen';
 import TrainingScreen from './src/screens/TrainingScreen';
@@ -41,34 +43,78 @@ const TAB_LABELS: Record<string, string> = {
   Stats:     'Stats',
 };
 
+// Chaque écran se dessine sur le fond à halos : les écrans sont transparents,
+// le fond est peint ici une fois par écran pour que les transitions restent nettes.
+function withBackground<P extends object>(Screen: React.ComponentType<P>) {
+  const Wrapped = (props: P) => (
+    <View style={{ flex: 1 }}>
+      <AppBackground />
+      <Screen {...props} />
+    </View>
+  );
+  Wrapped.displayName = `WithBackground(${Screen.displayName ?? Screen.name ?? 'Screen'})`;
+  return Wrapped;
+}
+
+const BG = {
+  LiveWorkoutScreen: withBackground(LiveWorkoutScreen),
+  CoachChatScreen: withBackground(CoachChatScreen),
+  SettingsScreen: withBackground(SettingsScreen),
+  ExerciseLibraryScreen: withBackground(ExerciseLibraryScreen),
+  WorkoutBuilderScreen: withBackground(WorkoutBuilderScreen),
+  ShoppingListScreen: withBackground(ShoppingListScreen),
+  HouseholdScreen: withBackground(HouseholdScreen),
+  MealPlanScreen: withBackground(MealPlanScreen),
+  CheckInScreen: withBackground(CheckInScreen),
+};
+
+const Dashboard = withBackground(DashboardScreen);
+const Training = withBackground(TrainingScreen);
+const Nutrition = withBackground(NutritionScreen);
+const Stats = withBackground(StatsScreen);
+
 function MainTabs() {
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
+        // Barre d'onglets flottante en verre, façon iOS 26.
         tabBarStyle: {
-          backgroundColor: COLORS.surface,
-          borderTopColor: COLORS.border,
-          borderTopWidth: 1,
-          height: 68,
-          paddingBottom: 10,
+          position: 'absolute',
+          left: 20,
+          right: 20,
+          bottom: Math.max(insets.bottom, 12),
+          height: 64,
+          borderRadius: 32,
+          borderTopWidth: 0,
+          backgroundColor: 'transparent',
+          elevation: 0,
           paddingTop: 8,
+          paddingBottom: 8,
         },
-        tabBarActiveTintColor: COLORS.primary,
+        tabBarBackground: () => <Glass radius={32} interactive style={StyleSheet.absoluteFill} />,
+        tabBarActiveTintColor: COLORS.text,
         tabBarInactiveTintColor: COLORS.textMuted,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
         tabBarLabel: TAB_LABELS[route.name] ?? route.name,
         tabBarIcon: ({ color, size, focused }) => {
           const icons = TAB_ICONS[route.name];
           if (!icons) return null;
-          return <Ionicons name={focused ? icons.active : icons.inactive} size={size} color={color} />;
+          return (
+            <Ionicons
+              name={focused ? icons.active : icons.inactive}
+              size={22}
+              color={focused ? COLORS.primary : color}
+            />
+          );
         },
       })}
     >
-      <Tab.Screen name="Dashboard" component={DashboardScreen} />
-      <Tab.Screen name="Training"  component={TrainingScreen} />
-      <Tab.Screen name="Nutrition" component={NutritionScreen} />
-      <Tab.Screen name="Stats"     component={StatsScreen} />
+      <Tab.Screen name="Dashboard" component={Dashboard} />
+      <Tab.Screen name="Training"  component={Training} />
+      <Tab.Screen name="Nutrition" component={Nutrition} />
+      <Tab.Screen name="Stats"     component={Stats} />
     </Tab.Navigator>
   );
 }
@@ -83,8 +129,8 @@ function RootShell() {
           dark: true,
           colors: {
             ...DefaultTheme.colors,
-            background: COLORS.background,
-            card: COLORS.surface,
+            background: COLORS.backgroundSolid,
+            card: COLORS.backgroundSolid,
             text: COLORS.text,
             border: COLORS.border,
             primary: COLORS.primary,
@@ -95,53 +141,53 @@ function RootShell() {
         <Stack.Navigator
           screenOptions={{
             headerShown: false,
-            contentStyle: { backgroundColor: COLORS.background },
+            contentStyle: { backgroundColor: COLORS.backgroundSolid },
           }}
         >
           <Stack.Screen name="Main" component={MainTabs} />
           <Stack.Screen
             name="LiveWorkout"
-            component={LiveWorkoutScreen}
+            component={BG.LiveWorkoutScreen}
             options={{ animation: 'slide_from_bottom', presentation: 'fullScreenModal' }}
           />
           <Stack.Screen
             name="CoachChat"
-            component={CoachChatScreen}
+            component={BG.CoachChatScreen}
             options={{ animation: 'slide_from_right' }}
           />
           <Stack.Screen
             name="Settings"
-            component={SettingsScreen}
+            component={BG.SettingsScreen}
             options={{ animation: 'slide_from_right' }}
           />
           <Stack.Screen
             name="ExerciseLibrary"
-            component={ExerciseLibraryScreen}
+            component={BG.ExerciseLibraryScreen}
             options={{ animation: 'slide_from_right' }}
           />
           <Stack.Screen
             name="WorkoutBuilder"
-            component={WorkoutBuilderScreen}
+            component={BG.WorkoutBuilderScreen}
             options={{ animation: 'slide_from_bottom', presentation: 'fullScreenModal' }}
           />
           <Stack.Screen
             name="CheckIn"
-            component={CheckInScreen}
+            component={BG.CheckInScreen}
             options={{ animation: 'slide_from_right' }}
           />
           <Stack.Screen
             name="MealPlan"
-            component={MealPlanScreen}
+            component={BG.MealPlanScreen}
             options={{ animation: 'slide_from_right' }}
           />
           <Stack.Screen
             name="Household"
-            component={HouseholdScreen}
+            component={BG.HouseholdScreen}
             options={{ animation: 'slide_from_right' }}
           />
           <Stack.Screen
             name="ShoppingList"
-            component={ShoppingListScreen}
+            component={BG.ShoppingListScreen}
             options={{ animation: 'slide_from_right' }}
           />
         </Stack.Navigator>
