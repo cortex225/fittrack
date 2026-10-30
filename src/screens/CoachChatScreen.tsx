@@ -287,6 +287,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    minWidth: 0,
     paddingVertical: 8,
     color: COLORS.text,
     ...TYPE.body,

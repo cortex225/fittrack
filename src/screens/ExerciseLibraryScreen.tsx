@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
   FlatList,
-  Modal,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Modal } from '../components/Modal';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     height: 46,
   },
-  searchInput: { flex: 1, color: COLORS.text, fontSize: 16 },
+  searchInput: { flex: 1, minWidth: 0, color: COLORS.text, fontSize: 16 },
 
   segmentWrap: { paddingHorizontal: SPACING.lg, marginTop: SPACING.md },
 

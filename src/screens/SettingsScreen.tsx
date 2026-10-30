@@ -518,6 +518,7 @@ const styles = StyleSheet.create({
   fieldLabel: { ...TYPE.body, color: COLORS.text, width: 88 },
   fieldInput: {
     flex: 1,
+    minWidth: 0,
     textAlign: 'right',
     color: COLORS.text,
     fontSize: 17,

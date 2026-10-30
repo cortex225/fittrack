@@ -229,7 +229,7 @@ export const Stepper: React.FC<{
           <Ionicons name="remove" size={18} color={COLORS.text} />
         </PressableScale>
         <Text style={ui.stepperValue}>
-          {value.toFixed(decimals)}
+          {value.toFixed(decimals).replace('.', ',')}
           <Text style={ui.stepperUnit}> {unit}</Text>
         </Text>
         <PressableScale style={ui.stepperBtn} onPress={() => onChange(clamp(value + step))} accessibilityLabel={`Plus ${label}`}>

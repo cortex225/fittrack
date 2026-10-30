@@ -335,6 +335,7 @@ const styles = StyleSheet.create({
   weightRow: { flexDirection: 'row', alignItems: 'baseline', gap: SPACING.sm },
   weightInput: {
     flex: 1,
+    minWidth: 0, // sur le web, un champ garde sinon sa largeur native et pousse « kg » hors du cadre
     ...TYPE.number,
     fontSize: 44,
     color: COLORS.text,

@@ -587,7 +587,7 @@ const styles = StyleSheet.create({
   setsHead: { flexDirection: 'row', alignItems: 'center', paddingTop: 14, paddingBottom: 10 },
   setsHeadText: { ...TYPE.footnote, color: COLORS.textMuted, textAlign: 'center' },
   colNum: { width: 48, textAlign: 'center' },
-  colInput: { flex: 1, marginHorizontal: 5 },
+  colInput: { flex: 1, minWidth: 0, marginHorizontal: 5 },
   colCheck: { width: 56, alignItems: 'flex-end' },
   hairline: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
   setRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },

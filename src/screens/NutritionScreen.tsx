@@ -2,7 +2,6 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
   ScrollView,
   StatusBar,
@@ -13,6 +12,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { Modal } from '../components/Modal';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';

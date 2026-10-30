@@ -510,6 +510,7 @@ const styles = StyleSheet.create({
   },
   weightInput: {
     flex: 1,
+    minWidth: 0,
     color: COLORS.text,
     fontSize: 20,
     fontWeight: '600',

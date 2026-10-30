@@ -2,7 +2,6 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   FlatList,
@@ -12,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Modal } from '../components/Modal';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
 
   addBar: { paddingTop: SPACING.sm, paddingHorizontal: SPACING.md },
   addGlass: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 18, paddingRight: 5, paddingVertical: 5 },
-  input: { flex: 1, paddingVertical: 8, color: COLORS.text, ...TYPE.body },
+  input: { flex: 1, minWidth: 0, paddingVertical: 8, color: COLORS.text, ...TYPE.body },
   addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   addBtnDisabled: { backgroundColor: COLORS.cardElevated },
 

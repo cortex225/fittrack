@@ -11,6 +11,7 @@ import { AppProvider, useApp } from './src/contexts/AppContext';
 import LevelUpOverlay from './src/components/LevelUpOverlay';
 import { COLORS } from './src/theme';
 import { AppBackground, Glass } from './src/components/glass';
+import { PHONE_MAX_WIDTH } from './src/components/Modal';
 
 import DashboardScreen from './src/screens/DashboardScreen';
 import TrainingScreen from './src/screens/TrainingScreen';
@@ -212,7 +213,7 @@ const PhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
 const frame = StyleSheet.create({
   outer: { flex: 1, backgroundColor: '#000', alignItems: 'center' },
-  inner: { flex: 1, width: '100%', maxWidth: 460, overflow: 'hidden', backgroundColor: COLORS.backgroundSolid },
+  inner: { flex: 1, width: '100%', maxWidth: PHONE_MAX_WIDTH, overflow: 'hidden', backgroundColor: COLORS.backgroundSolid },
 });
 
 export default function App() {

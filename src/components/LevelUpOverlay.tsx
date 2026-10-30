@@ -1,5 +1,6 @@
 import React from 'react';
-import { Modal, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Modal } from './Modal';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, RADIUS, SPACING, TYPE } from '../theme';
 import { LEVELS } from '../data/library';
